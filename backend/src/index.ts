@@ -14,7 +14,6 @@ app.use(cors({
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization','Cookie'],
 }));
-
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -26,7 +25,7 @@ const PORT = Number(process.env.PORT ?? 4000);
 
 http.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running on 0.0.0.0:${PORT}`);
-  try { const { initDb } = await import('./config/db'); await initDb(); const { runMigrations } = await import('./utils/migrate'); await runMigrations(); } catch(e: any) { console.error('[DB]', e.message); }
+  try { const { initDb } = await import('./config/db'); await initDb(); } catch(e: any) { console.error('[DB]', e.message); }
   try { const { initRedis } = await import('./config/redis'); await initRedis(); } catch(e: any) { console.error('[Redis]', e.message); }
   const { default: authRoutes } = await import('./routes/auth.routes');
   const { default: accountRoutes } = await import('./routes/account.routes');
