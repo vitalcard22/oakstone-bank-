@@ -186,23 +186,22 @@ export async function refreshToken(req: Request, res: Response, next: NextFuncti
     const session = await getRedis().get(keys.session(payload.sub));
     if (!session) throw new AppError('Session expired', 401);
 
-    const { hash } = JSON.parse(session);
-    const valid    = await bcrypt.compare(rt, hash);
-    if (!valid) throw new AppError('Token mismatch', 401);
-
-    const { rows } = await getDb().query(
-      'SELECT role FROM users WHERE id=$1 AND is_active=true',
-      [payload.sub]
-    );
-    if (!rows.length) throw new AppError('User not found', 401);
-
-    const jti         = uuid();
-    const accessToken = signAccess(payload.sub, rows[0].role, jti);
-    res.json({ accessToken });
-  } catch (e) {
-    next(e);
-  }
-}
+   // Allow login even without Redis - check DB sessions as fallback
+    let valid = false;
+    if (session) {
+      const { hash } = JSON.parse(session);
+      valid = await bcrypt.compare(rt, hash);
+    } else {
+      // Check DB sessions table
+      const { rows: dbSessions } = await getDb().query(
+        `SELECT refresh_hash FROM sessions WHERE user_id=$1 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 5`,
+        [payload.sub]
+      );
+      for (const s of dbSessions) {
+        if (await bcrypt.compare(rt, s.refresh_hash)) { valid = true; break; }
+      }
+    }
+    if (!valid) throw new AppError('Session expired or invalid', 401);
 
 // POST /auth/logout
 export async function logout(req: Request, res: Response, next: NextFunction): Promise<void> {
