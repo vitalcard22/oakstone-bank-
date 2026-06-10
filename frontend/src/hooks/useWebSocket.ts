@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../stores/auth.store';
 
