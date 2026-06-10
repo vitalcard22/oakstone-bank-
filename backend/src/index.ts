@@ -80,13 +80,14 @@ app.use(errorHandler);
 
 // Start
 const PORT = Number(process.env.PORT ?? 4000);
+const HOST = '0.0.0.0';
 
 (async () => {
   validateEnv();
   await initDb();
   await initRedis();
   initWebSocket(http);
-  http.listen(PORT, () => {
-    console.log(`[Oakstone] API running on port ${PORT}`);
+  http.listen(PORT, HOST, () => {
+    console.log(`[Oakstone] API running on ${HOST}:${PORT}`);
   });
 })();
