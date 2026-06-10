@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/auth.store';
 
