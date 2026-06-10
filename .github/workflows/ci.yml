@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  backend:
+    name: Backend — type check + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV:             test
+      DATABASE_URL:         postgresql://oakstone:password@localhost:5432/oakstone_test
+      REDIS_URL:            redis://localhost:6379
+      JWT_SECRET:           ci_test_secret_minimum_32_characters_long_here
+      JWT_REFRESH_SECRET:   ci_refresh_secret_different_value_minimum_32_chars
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER:     oakstone
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB:       oakstone_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+
+  frontend:
+    name: Frontend — type check + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.oakstonebank.com/api/v1
+          VITE_WS_URL:  wss://api.oakstonebank.com/ws

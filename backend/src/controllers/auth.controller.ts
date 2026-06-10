@@ -1,0 +1,317 @@
+import { Request, Response, NextFunction } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { v4 as uuid } from 'uuid';
+import speakeasy from 'speakeasy';
+import QRCode from 'qrcode';
+import { getDb } from '../config/db';
+import { getRedis, keys } from '../config/redis';
+import { AppError } from '../utils/AppError';
+import { auditLog } from '../utils/audit';
+
+const ACCESS_TTL         = '15m';
+const REFRESH_TTL        = '7d';
+const REFRESH_TTL_SECS   = 60 * 60 * 24 * 7;
+
+function signAccess(userId: string, role: string, jti: string): string {
+  return jwt.sign({ sub: userId, role, jti }, process.env.JWT_SECRET!, { expiresIn: ACCESS_TTL });
+}
+
+function signRefresh(userId: string, jti: string): string {
+  return jwt.sign({ sub: userId, jti }, process.env.JWT_REFRESH_SECRET!, { expiresIn: REFRESH_TTL });
+}
+
+// POST /auth/register
+export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const db = getDb();
+    const { email, password, firstName, lastName, phone } = req.body;
+
+    const { rowCount } = await db.query('SELECT 1 FROM users WHERE email = $1', [email]);
+    if (rowCount) throw new AppError('Email already registered', 409);
+
+    const hash   = await bcrypt.hash(password, 12);
+    const userId = uuid();
+
+    await db.query(
+      `INSERT INTO users (id, email, phone, password_hash, first_name, last_name)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [userId, email, phone ?? null, hash, firstName, lastName]
+    );
+
+    await auditLog({ actorId: userId, action: 'auth.register', entityType: 'user', entityId: userId });
+    res.status(201).json({ message: 'Account created. Please sign in.' });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/login
+export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const db    = getDb();
+    const redis = getRedis();
+    const { email, password } = req.body;
+
+    const { rows } = await db.query(
+      `SELECT id, password_hash, role, mfa_enabled, mfa_secret,
+              failed_login_attempts, locked_until, is_active
+       FROM users WHERE email = $1`,
+      [email]
+    );
+
+    if (!rows.length) throw new AppError('Invalid credentials', 401);
+    const user = rows[0];
+
+    if (!user.is_active) throw new AppError('Account suspended', 403);
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      throw new AppError('Account locked. Try again later.', 423);
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      const attempts = user.failed_login_attempts + 1;
+      const lockUntil = attempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : null;
+      await db.query(
+        'UPDATE users SET failed_login_attempts=$1, locked_until=$2 WHERE id=$3',
+        [attempts, lockUntil, user.id]
+      );
+      throw new AppError('Invalid credentials', 401);
+    }
+
+    // Reset lockout on success
+    await db.query(
+      'UPDATE users SET failed_login_attempts=0, locked_until=NULL, last_login_at=NOW(), last_login_ip=$1 WHERE id=$2',
+      [req.ip, user.id]
+    );
+
+    // MFA required
+    if (user.mfa_enabled) {
+      const challengeToken = jwt.sign(
+        { sub: user.id, type: 'mfa_challenge' },
+        process.env.JWT_SECRET!,
+        { expiresIn: '5m' }
+      );
+      res.json({ requiresMfa: true, challengeToken });
+      return;
+    }
+
+    const jti          = uuid();
+    const accessToken  = signAccess(user.id, user.role, jti);
+    const refreshToken = signRefresh(user.id, jti);
+
+    // Store refresh token hash in Redis
+    const rtHash = await bcrypt.hash(refreshToken, 8);
+    await redis.setEx(keys.session(user.id), REFRESH_TTL_SECS, JSON.stringify({ jti, hash: rtHash }));
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge:   REFRESH_TTL_SECS * 1000,
+    });
+
+    await auditLog({ actorId: user.id, action: 'auth.login', ip: req.ip });
+    res.json({ accessToken, user: { id: user.id, role: user.role } });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/mfa/complete
+export async function completeMfa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { challengeToken, token } = req.body;
+
+    let payload: any;
+    try {
+      payload = jwt.verify(challengeToken, process.env.JWT_SECRET!);
+    } catch {
+      throw new AppError('Challenge expired', 400);
+    }
+
+    if (payload.type !== 'mfa_challenge') throw new AppError('Invalid challenge', 400);
+
+    const { rows } = await getDb().query(
+      'SELECT role, mfa_secret FROM users WHERE id=$1',
+      [payload.sub]
+    );
+    if (!rows.length) throw new AppError('User not found', 404);
+
+    const valid = speakeasy.totp.verify({
+      secret:   rows[0].mfa_secret,
+      encoding: 'base32',
+      token,
+      window:   1,
+    });
+    if (!valid) throw new AppError('Invalid MFA code', 400);
+
+    const jti          = uuid();
+    const accessToken  = signAccess(payload.sub, rows[0].role, jti);
+    const refreshToken = signRefresh(payload.sub, jti);
+
+    const rtHash = await bcrypt.hash(refreshToken, 8);
+    await getRedis().setEx(
+      keys.session(payload.sub),
+      REFRESH_TTL_SECS,
+      JSON.stringify({ jti, hash: rtHash })
+    );
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge:   REFRESH_TTL_SECS * 1000,
+    });
+
+    res.json({ accessToken, user: { id: payload.sub, role: rows[0].role } });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/refresh
+export async function refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rt = req.cookies?.refreshToken;
+    if (!rt) throw new AppError('No refresh token', 401);
+
+    let payload: any;
+    try {
+      payload = jwt.verify(rt, process.env.JWT_REFRESH_SECRET!);
+    } catch {
+      throw new AppError('Invalid refresh token', 401);
+    }
+
+    const session = await getRedis().get(keys.session(payload.sub));
+    if (!session) throw new AppError('Session expired', 401);
+
+    const { hash } = JSON.parse(session);
+    const valid    = await bcrypt.compare(rt, hash);
+    if (!valid) throw new AppError('Token mismatch', 401);
+
+    const { rows } = await getDb().query(
+      'SELECT role FROM users WHERE id=$1 AND is_active=true',
+      [payload.sub]
+    );
+    if (!rows.length) throw new AppError('User not found', 401);
+
+    const jti         = uuid();
+    const accessToken = signAccess(payload.sub, rows[0].role, jti);
+    res.json({ accessToken });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/logout
+export async function logout(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user  = (req as any).user;
+    const redis = getRedis();
+    await redis.del(keys.session(user.id));
+    await redis.setEx(keys.blacklist(user.jti), 900, '1');
+    res.clearCookie('refreshToken');
+    await auditLog({ actorId: user.id, action: 'auth.logout' });
+    res.json({ message: 'Logged out' });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// GET /auth/me
+export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      `SELECT id, email, phone, first_name, last_name, role, kyc_status, mfa_enabled, created_at
+       FROM users WHERE id=$1`,
+      [(req as any).user.id]
+    );
+    if (!rows.length) throw new AppError('Not found', 404);
+    res.json(rows[0]);
+  } catch (e) {
+    next(e);
+  }
+}
+
+// PATCH /auth/me
+export async function updateMe(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { firstName, lastName, phone } = req.body;
+    await getDb().query(
+      'UPDATE users SET first_name=$1, last_name=$2, phone=$3 WHERE id=$4',
+      [firstName, lastName, phone, (req as any).user.id]
+    );
+    res.json({ message: 'Profile updated' });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/mfa/setup
+export async function setupMfa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const secret = speakeasy.generateSecret({ name: `OakstoneBank`, length: 20 });
+    const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
+    await getRedis().setEx(`mfa_setup:${userId}`, 300, secret.base32);
+    res.json({ secret: secret.base32, qrCode });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/mfa/verify
+export async function verifyMfa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const { token } = req.body;
+    const secret    = await getRedis().get(`mfa_setup:${userId}`);
+    if (!secret) throw new AppError('MFA setup expired', 400);
+
+    const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
+    if (!valid) throw new AppError('Invalid code', 400);
+
+    await getDb().query('UPDATE users SET mfa_enabled=TRUE, mfa_secret=$1 WHERE id=$2', [secret, userId]);
+    await getRedis().del(`mfa_setup:${userId}`);
+    res.json({ message: 'MFA enabled' });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/forgot-password
+export async function forgotPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { email } = req.body;
+    const { rows }  = await getDb().query('SELECT id FROM users WHERE email=$1', [email]);
+    if (rows.length) {
+      const token = uuid();
+      await getRedis().setEx(`reset:${token}`, 3600, rows[0].id);
+      // In production: send email with reset link
+      console.log(`[Auth] Password reset token for ${email}: ${token}`);
+    }
+    res.json({ message: 'If that email exists, a reset link was sent.' });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/reset-password
+export async function resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { token, newPassword } = req.body;
+    const userId = await getRedis().get(`reset:${token}`);
+    if (!userId) throw new AppError('Reset link expired or invalid', 400);
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await getDb().query(
+      'UPDATE users SET password_hash=$1, failed_login_attempts=0, locked_until=NULL WHERE id=$2',
+      [hash, userId]
+    );
+    await getRedis().del(`reset:${token}`);
+    res.json({ message: 'Password reset successful' });
+  } catch (e) {
+    next(e);
+  }
+}

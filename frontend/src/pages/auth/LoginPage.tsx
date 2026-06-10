@@ -1,0 +1,84 @@
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Link, useNavigate } from 'react-router-dom';
+import { authApi } from '../../services/api';
+import { useAuthStore, normalizeUser } from '../../stores/auth.store';
+import toast from 'react-hot-toast';
+import { useState } from 'react';
+
+const schema = z.object({
+  email:    z.string().email('Invalid email'),
+  password: z.string().min(1, 'Required'),
+});
+type Form = z.infer<typeof schema>;
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const { setUser, setAccessToken } = useAuthStore();
+  const [loading, setLoading] = useState(false);
+  const { register, handleSubmit, formState: { errors } } = useForm<Form>({ resolver: zodResolver(schema) });
+
+  async function onSubmit(data: Form) {
+    setLoading(true);
+    try {
+      const res = await authApi.login(data);
+      if (res.data.requiresMfa) {
+        navigate('/mfa', { state: { challengeToken: res.data.challengeToken } });
+        return;
+      }
+      setAccessToken(res.data.accessToken);
+      const me = await authApi.getMe();
+      setUser(normalizeUser(me.data));
+      navigate(me.data.role === 'customer' ? '/dashboard' : '/admin/dashboard');
+    } catch (e: any) {
+      toast.error(e.response?.data?.error ?? 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-navy-600 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-gold-500 rounded-lg flex items-center justify-center">
+              <svg viewBox="0 0 22 22" fill="none" className="w-6 h-6">
+                <path d="M4 18V10L11 4L18 10V18H13V13H9V18H4Z" fill="white"/>
+              </svg>
+            </div>
+            <span className="text-white text-2xl font-semibold">Oakstone Bank</span>
+          </div>
+          <p className="text-white/60 text-sm">Sign in to your account</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-8 shadow-2xl">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div>
+              <label className="label">Email address</label>
+              <input {...register('email')} type="email" className="input" placeholder="you@example.com" autoComplete="email"/>
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            </div>
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="label mb-0">Password</label>
+                <Link to="/forgot-password" className="text-xs text-gold-500 hover:underline">Forgot password?</Link>
+              </div>
+              <input {...register('password')} type="password" className="input" placeholder="••••••••" autoComplete="current-password"/>
+              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+            </div>
+            <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+              {loading ? 'Signing in...' : 'Sign in'}
+            </button>
+          </form>
+          <p className="text-center text-sm text-gray-500 mt-6">
+            No account?{' '}
+            <Link to="/register" className="text-navy-600 font-medium hover:underline">Open one today</Link>
+          </p>
+        </div>
+        <p className="text-center text-white/30 text-xs mt-6">FDIC Insured · Equal Housing Lender</p>
+      </div>
+    </div>
+  );
+}

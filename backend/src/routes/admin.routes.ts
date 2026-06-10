@@ -1,0 +1,30 @@
+import { Router } from 'express';
+import { body } from 'express-validator';
+import { validate } from '../middleware/validate';
+import { authenticate, requireAdmin } from '../middleware/auth';
+import * as c from '../controllers/admin.controller';
+
+const r = Router();
+r.use(authenticate, requireAdmin);
+
+r.get ('/dashboard',                     c.getDashboard);
+r.get ('/users',                         c.listUsers);
+r.patch('/users/:id/status',             body('isActive').isBoolean(), validate, c.setUserStatus);
+r.get ('/kyc/queue',                     c.kycQueue);
+r.post('/kyc/:userId/approve',           c.approveKyc);
+r.post('/kyc/:userId/reject',            body('reason').notEmpty(), validate, c.rejectKyc);
+r.get ('/card-fees',                     c.getCardFees);
+r.patch('/card-fees/:cardType',          body('applicationFee').isFloat({ min: 0 }), body('feeEnabled').isBoolean(), validate, c.updateCardFee);
+r.get ('/card-applications',             c.listCardApplications);
+r.post('/card-applications/:id/approve', body('creditLimit').isFloat({ min: 100 }), body('apr').isFloat({ min: 0 }), validate, c.approveCardApp);
+r.post('/card-applications/:id/reject',  body('reason').notEmpty(), validate, c.rejectCardApp);
+r.get ('/loan-applications',             c.listLoanApplications);
+r.post('/loan-applications/:id/approve', body('interestRate').isFloat({ min: 0 }), body('termMonths').isInt({ min: 1 }), validate, c.approveLoan);
+r.post('/loan-applications/:id/reject',  body('reason').notEmpty(), validate, c.rejectLoan);
+r.get ('/transactions',                  c.listAllTransactions);
+r.post('/transactions/:id/flag',         c.flagTransaction);
+r.get ('/fraud-alerts',                  c.listFraudAlerts);
+r.post('/fraud-alerts/:id/resolve',      c.resolveFraudAlert);
+r.get ('/audit-log',                     c.getAuditLog);
+
+export default r;

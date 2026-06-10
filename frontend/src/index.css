@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@layer base {
+  body { font-family: 'Inter', sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-navy-600 text-white text-sm font-medium px-5 py-2.5 rounded-md
+           hover:bg-navy-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-white text-navy-600 text-sm font-medium px-5 py-2.5 rounded-md
+           border border-gray-200 hover:bg-gray-50 transition-colors;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white text-sm font-medium px-5 py-2.5 rounded-md
+           hover:bg-red-700 transition-colors;
+  }
+  .input {
+    @apply w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm
+           focus:outline-none focus:ring-1 focus:ring-navy-600 focus:border-navy-600
+           placeholder:text-gray-400 bg-white;
+  }
+  .label {
+    @apply block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5;
+  }
+  .card {
+    @apply bg-white rounded-xl border border-gray-100 shadow-sm;
+  }
+  .badge-green  { @apply text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700; }
+  .badge-amber  { @apply text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700; }
+  .badge-red    { @apply text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-700; }
+  .badge-blue   { @apply text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700; }
+  .badge-gray   { @apply text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600; }
+}

@@ -1,0 +1,32 @@
+# IMPORTANT: change "oakstone-api" to a unique name e.g. "oakstone-api-yourname"
+app            = "oakstone-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT     = "8080"
+
+[http_service]
+  internal_port        = 8080
+  force_https          = true
+  auto_stop_machines   = false
+  auto_start_machines  = true
+  min_machines_running = 1
+
+[[vm]]
+  memory   = "512mb"
+  cpu_kind = "shared"
+  cpus     = 1
+
+[checks]
+  [checks.health]
+    grace_period = "10s"
+    interval     = "30s"
+    method       = "GET"
+    path         = "/health"
+    port         = 8080
+    timeout      = "5s"
+    type         = "http"

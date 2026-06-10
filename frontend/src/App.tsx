@@ -1,0 +1,90 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'react-hot-toast';
+import { useAuthStore } from './stores/auth.store';
+
+import AppLayout   from './components/layout/AppLayout';
+import AdminLayout from './components/layout/AdminLayout';
+
+import LoginPage          from './pages/auth/LoginPage';
+import RegisterPage       from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import MfaPage            from './pages/auth/MfaPage';
+
+import DashboardPage     from './pages/dashboard/DashboardPage';
+import AccountsPage      from './pages/dashboard/AccountsPage';
+import AccountDetailPage from './pages/dashboard/AccountDetailPage';
+import TransferPage      from './pages/dashboard/TransferPage';
+import ZellePage         from './pages/dashboard/ZellePage';
+import CardsPage         from './pages/dashboard/CardsPage';
+import CardApplyPage     from './pages/dashboard/CardApplyPage';
+import LoansPage         from './pages/dashboard/LoansPage';
+import LoanApplyPage     from './pages/dashboard/LoanApplyPage';
+import NotificationsPage from './pages/dashboard/NotificationsPage';
+import ProfilePage       from './pages/dashboard/ProfilePage';
+
+import AdminDashboardPage    from './pages/admin/AdminDashboardPage';
+import AdminUsersPage        from './pages/admin/AdminUsersPage';
+import AdminKycPage          from './pages/admin/AdminKycPage';
+import AdminCardFeesPage     from './pages/admin/AdminCardFeesPage';
+import AdminCardsPage        from './pages/admin/AdminCardsPage';
+import AdminLoansPage        from './pages/admin/AdminLoansPage';
+import AdminTransactionsPage from './pages/admin/AdminTransactionsPage';
+import AdminFraudPage        from './pages/admin/AdminFraudPage';
+import AdminAuditPage        from './pages/admin/AdminAuditPage';
+
+const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } });
+
+function Auth({ children }: { children: React.ReactNode }) {
+  return useAuthStore((s) => s.isAuthenticated()) ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function Admin({ children }: { children: React.ReactNode }) {
+  return useAuthStore((s) => s.isAdmin()) ? <>{children}</> : <Navigate to="/dashboard" replace />;
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={qc}>
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login"           element={<LoginPage />} />
+          <Route path="/register"        element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/mfa"             element={<MfaPage />} />
+
+          <Route path="/" element={<Auth><AppLayout /></Auth>}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard"      element={<DashboardPage />} />
+            <Route path="accounts"       element={<AccountsPage />} />
+            <Route path="accounts/:id"   element={<AccountDetailPage />} />
+            <Route path="transfer"       element={<TransferPage />} />
+            <Route path="zelle"          element={<ZellePage />} />
+            <Route path="cards"          element={<CardsPage />} />
+            <Route path="cards/apply"    element={<CardApplyPage />} />
+            <Route path="loans"          element={<LoansPage />} />
+            <Route path="loans/apply"    element={<LoanApplyPage />} />
+            <Route path="notifications"  element={<NotificationsPage />} />
+            <Route path="profile"        element={<ProfilePage />} />
+          </Route>
+
+          <Route path="/admin" element={<Auth><Admin><AdminLayout /></Admin></Auth>}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard"    element={<AdminDashboardPage />} />
+            <Route path="users"        element={<AdminUsersPage />} />
+            <Route path="kyc"          element={<AdminKycPage />} />
+            <Route path="card-fees"    element={<AdminCardFeesPage />} />
+            <Route path="cards"        element={<AdminCardsPage />} />
+            <Route path="loans"        element={<AdminLoansPage />} />
+            <Route path="transactions" element={<AdminTransactionsPage />} />
+            <Route path="fraud"        element={<AdminFraudPage />} />
+            <Route path="audit"        element={<AdminAuditPage />} />
+          </Route>
+
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}
