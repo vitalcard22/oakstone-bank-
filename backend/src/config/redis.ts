@@ -1,10 +1,11 @@
 import { createClient } from 'redis';
 
-let client: ReturnType<typeof createClient> | null = null;
+type RedisClient = ReturnType<typeof createClient>;
+let client: RedisClient | null = null;
 
 export async function initRedis(): Promise<void> {
   const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
-  if (process.env.NODE_ENV === 'production' && url === 'redis://localhost:6379') {
+  if (url === 'redis://localhost:6379' && process.env.NODE_ENV === 'production') {
     console.log('[Redis] Skipping — no Redis configured');
     return;
   }
@@ -13,13 +14,15 @@ export async function initRedis(): Promise<void> {
     client.on('error', (e) => console.error('[Redis]', e.message));
     await client.connect();
     console.log('[Redis] Connected');
-  } catch (e) {
-    console.warn('[Redis] Could not connect — running without cache');
+  } catch (e: any) {
+    console.warn('[Redis] Could not connect:', e.message);
     client = null;
   }
 }
 
-export function getRedis() { return client; }
+export function getRedis(): RedisClient | null {
+  return client;
+}
 
 export const keys = {
   session:   (uid: string) => `session:${uid}`,
@@ -31,18 +34,23 @@ export const keys = {
 
 export const safeRedis = {
   async get(key: string): Promise<string | null> {
-    try { return client ? await client.get(key) : null; } catch { return null; }
+    if (!client) return null;
+    try { return await client.get(key); } catch { return null; }
   },
   async setEx(key: string, ttl: number, value: string): Promise<void> {
-    try { if (client) await client.setEx(key, ttl, value); } catch {}
+    if (!client) return;
+    try { await client.setEx(key, ttl, value); } catch {}
   },
   async del(key: string): Promise<void> {
-    try { if (client) await client.del(key); } catch {}
+    if (!client) return;
+    try { await client.del(key); } catch {}
   },
   async incr(key: string): Promise<number> {
-    try { return client ? await client.incr(key) : 1; } catch { return 1; }
+    if (!client) return 1;
+    try { return await client.incr(key); } catch { return 1; }
   },
   async expire(key: string, ttl: number): Promise<void> {
-    try { if (client) await client.expire(key, ttl); } catch {}
+    if (!client) return;
+    try { await client.expire(key, ttl); } catch {}
   },
 };
