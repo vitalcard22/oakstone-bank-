@@ -1,56 +1,58 @@
-import { createClient } from 'redis';
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import { createServer } from 'http';
+import { initDb } from './config/db';
+import { initRedis } from './config/redis';
+import { initWebSocket } from './services/websocket';
+import { errorHandler } from './middleware/errorHandler';
+import authRoutes from './routes/auth.routes';
+import accountRoutes from './routes/account.routes';
+import transactionRoutes from './routes/transaction.routes';
+import cardRoutes from './routes/card.routes';
+import loanRoutes from './routes/loan.routes';
+import notificationRoutes from './routes/notification.routes';
+import adminRoutes from './routes/admin.routes';
 
-type RedisClient = ReturnType<typeof createClient>;
-let client: RedisClient | null = null;
+async function bootstrap() {
+  const app = express();
+  const http = createServer(app);
 
-export async function initRedis(): Promise<void> {
-  const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
-  if (url === 'redis://localhost:6379' && process.env.NODE_ENV === 'production') {
-    console.log('[Redis] Skipping — no Redis configured');
-    return;
-  }
-  try {
-    client = createClient({ url, socket: { connectTimeout: 5000 } });
-    client.on('error', (e) => console.error('[Redis]', e.message));
-    await client.connect();
-    console.log('[Redis] Connected');
-  } catch (e: any) {
-    console.warn('[Redis] Could not connect:', e.message);
-    client = null;
-  }
+  app.use(cors({
+    origin: function(_origin, callback) { callback(null, true); },
+    credentials: true,
+    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization','Cookie'],
+  }));
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: false }));
+  app.use(cookieParser());
+
+  app.get('/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
+
+  try { await initDb(); } catch(e: any) { console.error('[DB]', e.message); }
+  try { await initRedis(); } catch(e: any) { console.error('[Redis]', e.message); }
+
+  app.use('/api/v1/auth', authRoutes);
+  app.use('/api/v1/accounts', accountRoutes);
+  app.use('/api/v1/transactions', transactionRoutes);
+  app.use('/api/v1/cards', cardRoutes);
+  app.use('/api/v1/loans', loanRoutes);
+  app.use('/api/v1/notifications', notificationRoutes);
+  app.use('/api/v1/admin', adminRoutes);
+  app.use(errorHandler);
+
+  const PORT = Number(process.env.PORT ?? 4000);
+  http.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Oakstone] Ready on 0.0.0.0:${PORT}`);
+    initWebSocket(http);
+  });
 }
 
-export function getRedis(): RedisClient | null {
-  return client;
-}
-
-export const keys = {
-  session:   (uid: string) => `session:${uid}`,
-  blacklist: (jti: string) => `bl:${jti}`,
-  otp:       (uid: string) => `otp:${uid}`,
-  fraud:     (uid: string) => `fraud:rapid:${uid}`,
-  lastIp:    (uid: string) => `fraud:ip:${uid}`,
-};
-
-export const safeRedis = {
-  async get(key: string): Promise<string | null> {
-    if (!client) return null;
-    try { return await client.get(key); } catch { return null; }
-  },
-  async setEx(key: string, ttl: number, value: string): Promise<void> {
-    if (!client) return;
-    try { await client.setEx(key, ttl, value); } catch {}
-  },
-  async del(key: string): Promise<void> {
-    if (!client) return;
-    try { await client.del(key); } catch {}
-  },
-  async incr(key: string): Promise<number> {
-    if (!client) return 1;
-    try { return await client.incr(key); } catch { return 1; }
-  },
-  async expire(key: string, ttl: number): Promise<void> {
-    if (!client) return;
-    try { await client.expire(key, ttl); } catch {}
-  },
-};
+bootstrap().catch((e) => {
+  console.error('Fatal:', e.message);
+  process.exit(1);
+});
