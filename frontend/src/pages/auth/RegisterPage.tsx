@@ -8,11 +8,11 @@ import { useState } from 'react';
 
 const schema = z.object({
   firstName: z.string().min(1,'Required'),
-  lastName:  z.string().min(1,'Required'),
-  email:     z.string().email('Invalid email'),
-  phone:     z.string().optional(),
-  password:  z.string().min(8,'Min 8 chars').regex(/[A-Z]/,'Need uppercase').regex(/[0-9]/,'Need number'),
-  confirm:   z.string(),
+  lastName: z.string().min(1,'Required'),
+  email: z.string().email('Invalid email'),
+  phone: z.string().optional(),
+  password: z.string().min(8,'Min 8 chars').regex(/[A-Z]/,'Need uppercase').regex(/[0-9]/,'Need number'),
+  confirm: z.string(),
 }).refine((d) => d.password === d.confirm, { message: 'Passwords do not match', path: ['confirm'] });
 type Form = z.infer<typeof schema>;
 
@@ -38,8 +38,11 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-navy-600 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <p className="text-white text-2xl font-semibold">Open an account</p>
-          <p className="text-white/60 text-sm mt-1">Takes about 5 minutes</p>
+          <Link to="/" className="inline-flex items-center gap-3 mb-3">
+            <img src="/logo.png" alt="Oakstone 1 Bank" className="w-11 h-11 object-contain" />
+            <span className="text-white text-2xl font-semibold">Oakstone 1 Bank</span>
+          </Link>
+          <p className="text-white/60 text-sm mt-1">Open an account — takes about 5 minutes</p>
         </div>
         <div className="bg-white rounded-2xl p-8 shadow-2xl">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -83,6 +86,9 @@ export default function RegisterPage() {
             <Link to="/login" className="text-navy-600 font-medium hover:underline">Sign in</Link>
           </p>
         </div>
+        <p className="text-center text-white/40 text-xs mt-6">
+          <Link to="/" className="hover:text-white/70">&larr; Back to home</Link>
+        </p>
       </div>
     </div>
   );

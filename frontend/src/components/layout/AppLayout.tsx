@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { authApi } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -8,14 +8,14 @@ import {
 } from 'lucide-react';
 
 const NAV = [
-  { to: '/dashboard',     label: 'Dashboard',     Icon: LayoutDashboard },
-  { to: '/accounts',      label: 'Accounts',      Icon: Wallet },
-  { to: '/transfer',      label: 'Transfer',       Icon: ArrowLeftRight },
-  { to: '/zelle',         label: 'Send money',     Icon: Zap },
-  { to: '/cards',         label: 'Cards',          Icon: CreditCard },
-  { to: '/loans',         label: 'Loans',          Icon: Landmark },
-  { to: '/notifications', label: 'Notifications',  Icon: Bell },
-  { to: '/profile',       label: 'Profile',        Icon: User },
+  { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { to: '/accounts', label: 'Accounts', Icon: Wallet },
+  { to: '/transfer', label: 'Transfer', Icon: ArrowLeftRight },
+  { to: '/zelle', label: 'Send money', Icon: Zap },
+  { to: '/cards', label: 'Cards', Icon: CreditCard },
+  { to: '/loans', label: 'Loans', Icon: Landmark },
+  { to: '/notifications', label: 'Notifications', Icon: Bell },
+  { to: '/profile', label: 'Profile', Icon: User },
 ];
 
 export default function AppLayout() {
@@ -25,7 +25,7 @@ export default function AppLayout() {
   async function handleLogout() {
     try { await authApi.logout(); } catch { /* ignore */ }
     logout();
-    navigate('/login');
+    navigate('/');
     toast.success('Signed out');
   }
 
@@ -33,17 +33,14 @@ export default function AppLayout() {
     <div className="min-h-screen flex bg-gray-50">
       <aside className="w-56 bg-navy-600 flex flex-col flex-shrink-0">
         <div className="px-5 py-5 border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-gold-500 rounded flex items-center justify-center flex-shrink-0">
-              <svg viewBox="0 0 22 22" fill="none" className="w-4 h-4">
-                <path d="M4 18V10L11 4L18 10V18H13V13H9V18H4Z" fill="white" />
-              </svg>
-            </div>
+          {/* Clickable brand -> public homepage */}
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/logo.png" alt="Oakstone 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
             <div>
-              <p className="text-white font-semibold text-sm leading-tight">Oakstone</p>
-              <p className="text-gold-400 text-xs">Bank</p>
+              <p className="text-white font-semibold text-sm leading-tight">Oakstone 1 Bank</p>
+              <p className="text-gold-400 text-xs">Member FDIC</p>
             </div>
-          </div>
+          </Link>
         </div>
 
         <div className="px-3 py-3 border-b border-white/10">

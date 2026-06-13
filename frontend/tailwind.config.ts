@@ -4,8 +4,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        navy: { 50:'#e8edf5', 500:'#1A3460', 600:'#0D1F3C', 700:'#080F1E' },
-        gold: { 400:'#E8B84B', 500:'#C4922A' },
+        // 'navy' keys kept so existing classes (bg-navy-600 etc.) work unchanged,
+        // but the values are now emerald — recolors the whole app at once.
+        navy: { 50:'#EAF3EE', 500:'#2E8B5E', 600:'#1F6B4A', 700:'#16513A' },
+        gold: { 400:'#E0A93C', 500:'#C08A2D' },
       },
       fontFamily: {
         sans: ['Inter','-apple-system','sans-serif'],

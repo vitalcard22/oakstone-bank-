@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { useState } from 'react';
 
 const schema = z.object({
-  email:    z.string().email('Invalid email'),
+  email: z.string().email('Invalid email'),
   password: z.string().min(1, 'Required'),
 });
 type Form = z.infer<typeof schema>;
@@ -42,14 +42,11 @@ export default function LoginPage() {
     <div className="min-h-screen bg-navy-600 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-gold-500 rounded-lg flex items-center justify-center">
-              <svg viewBox="0 0 22 22" fill="none" className="w-6 h-6">
-                <path d="M4 18V10L11 4L18 10V18H13V13H9V18H4Z" fill="white"/>
-              </svg>
-            </div>
-            <span className="text-white text-2xl font-semibold">Oakstone Bank</span>
-          </div>
+          {/* Clickable logo + name -> home */}
+          <Link to="/" className="inline-flex items-center gap-3 mb-4">
+            <img src="/logo.png" alt="Oakstone 1 Bank" className="w-12 h-12 object-contain" />
+            <span className="text-white text-2xl font-semibold">Oakstone 1 Bank</span>
+          </Link>
           <p className="text-white/60 text-sm">Sign in to your account</p>
         </div>
 
@@ -77,7 +74,9 @@ export default function LoginPage() {
             <Link to="/register" className="text-navy-600 font-medium hover:underline">Open one today</Link>
           </p>
         </div>
-        <p className="text-center text-white/30 text-xs mt-6">FDIC Insured · Equal Housing Lender</p>
+        <p className="text-center text-white/40 text-xs mt-6">
+          <Link to="/" className="hover:text-white/70">&larr; Back to home</Link>
+        </p>
       </div>
     </div>
   );
