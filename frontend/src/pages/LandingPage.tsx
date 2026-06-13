@@ -67,17 +67,15 @@ const ReserveCard: React.FC = () => (
     </div>
     <img className="ob-cc-seal" src={LOGO_SRC} alt="Oakstone 1 Bank seal" />
     <div className="ob-cc-chip" />
-    <div className="ob-cc-nfc"><i /><i /><i /></div>
     <div className="ob-cc-number">4914&nbsp;&nbsp;0001&nbsp;&nbsp;1914&nbsp;&nbsp;0001</div>
     <div className="ob-cc-meta">
       <span className="ob-cc-lbl">VALID THRU</span>
       <span className="ob-cc-val">12 / 30</span>
     </div>
-    <div className="ob-cc-holder">Cardholder Name</div>
+    <div className="ob-cc-holder">CARDHOLDER NAME</div>
     <div className="ob-cc-network">VISA</div>
-    <div className="ob-cc-sheen" />
   </div>
-)
+);
 
 const LandingPage: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -172,27 +170,19 @@ const LandingPage: React.FC = () => {
         .ob-card-feats li:before{content:"—";color:var(--cream-gold);margin-right:12px;}
         .ob-cc-cta{display:inline-block;font-size:14px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;padding:14px 30px;border-radius:7px;background:var(--cream-gold);color:var(--emerald);}
         .ob-cc-cta:hover{background:#fff;}
-        .ob-cc{position:relative;width:100%;max-width:460px;aspect-ratio:1.586/1;margin:0 auto;border-radius:22px;overflow:hidden;color:#eef2ee;font-family:var(--display);background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,transparent 22%),radial-gradient(140% 120% at 15% 10%,#2b6b4d 0%,#1c5238 30%,#133b29 55%,#0c2a1d 80%,#081d14 100%);box-shadow:0 40px 80px rgba(0,0,0,.55),inset 0 1px 1px rgba(255,255,255,.18),inset 0 -2px 6px rgba(0,0,0,.5);}
-        .ob-cc:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(122deg,rgba(255,255,255,.035) 0 1px,transparent 1px 4px);mix-blend-mode:overlay;pointer-events:none;}
-        .ob-cc-sheen{position:absolute;inset:0;pointer-events:none;background:linear-gradient(118deg,transparent 28%,rgba(255,255,255,.22) 44%,rgba(255,255,255,.05) 50%,transparent 58%);}
-        .ob-cc-frame{position:absolute;inset:14px;border:1px solid rgba(212,175,108,.45);border-radius:14px;box-shadow:inset 0 0 18px rgba(212,175,108,.08);pointer-events:none;}
-        .ob-cc-top{position:absolute;left:7%;top:11%;}
-        .ob-cc-name{font-size:25px;font-weight:600;color:#eef2ee;text-shadow:0 1px 2px rgba(0,0,0,.4);}
-        .ob-cc-tier{font-size:10px;letter-spacing:.46em;color:#d8b974;margin-top:6px;}
-        .ob-cc-seal{position:absolute;right:5.5%;top:9%;width:24%;aspect-ratio:1/1;object-fit:contain;filter:drop-shadow(0 2px 7px rgba(0,0,0,.55));}
-        .ob-cc-chip{position:absolute;left:7.5%;top:39%;width:56px;height:43px;border-radius:7px;background:linear-gradient(135deg,#f6e3a6 0%,#d9b463 40%,#b08e3f 70%,#8a6c2c 100%);box-shadow:inset 0 1px 2px rgba(255,255,255,.7),inset 0 -1px 3px rgba(80,60,15,.5),0 1px 2px rgba(0,0,0,.35);}
-        .ob-cc-chip:before{content:"";position:absolute;inset:0;border-radius:7px;background:linear-gradient(transparent 31%,rgba(90,70,25,.55) 31% 33%,transparent 33%),linear-gradient(transparent 64%,rgba(90,70,25,.55) 64% 66%,transparent 66%),linear-gradient(90deg,transparent 47%,rgba(90,70,25,.55) 47% 53%,transparent 53%);}
-        .ob-cc-nfc{position:absolute;left:calc(7.5% + 70px);top:40%;width:26px;height:34px;}
-        .ob-cc-nfc i{position:absolute;border:2px solid rgba(238,242,238,.55);border-left:0;border-radius:0 40px 40px 0;}
-        .ob-cc-nfc i:nth-child(1){width:7px;height:12px;top:11px;left:0;}
-        .ob-cc-nfc i:nth-child(2){width:13px;height:22px;top:6px;left:0;}
-        .ob-cc-nfc i:nth-child(3){width:19px;height:32px;top:1px;left:0;}
-        .ob-cc-number{position:absolute;left:7.5%;top:58%;right:7%;font-family:'Courier New',monospace;font-weight:700;font-size:clamp(16px,4.4vw,24px);letter-spacing:.12em;color:#f3f6f2;text-shadow:0 1px 0 rgba(255,255,255,.25),0 2px 3px rgba(0,0,0,.5);}
-        .ob-cc-meta{position:absolute;left:7.5%;top:72%;display:flex;align-items:baseline;gap:10px;}
-        .ob-cc-lbl{font-size:8px;letter-spacing:.22em;color:#d8b974;}
-        .ob-cc-val{font-family:'Courier New',monospace;font-size:15px;color:#eef2ee;letter-spacing:.05em;}
-        .ob-cc-holder{position:absolute;left:7.5%;bottom:8%;font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:#eef2ee;}
-        .ob-cc-network{position:absolute;right:7%;bottom:6.5%;font-size:22px;font-weight:600;font-style:italic;color:#eef2ee;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+        .ob-cc{position:relative;width:100%;max-width:440px;aspect-ratio:1.586/1;margin:0 auto;background:radial-gradient(120% 140% at 80% 0%,#21452f 0%,#1B3A2B 45%,#142A20 100%);border:2px solid var(--gold);border-radius:20px;box-shadow:0 22px 50px rgba(0,0,0,.35);overflow:hidden;color:#EFE7D2;font-family:var(--display);}
+        .ob-cc-frame{position:absolute;inset:12px;border:1px solid rgba(180,146,88,.45);border-radius:12px;}
+        .ob-cc-top{position:absolute;left:6%;top:9%;}
+        .ob-cc-name{font-size:22px;color:#EFE7D2;}
+        .ob-cc-tier{font-size:10px;letter-spacing:.4em;color:var(--cream-gold);margin-top:5px;}
+        .ob-cc-seal{position:absolute;right:5%;top:7%;width:26%;aspect-ratio:1/1;object-fit:contain;filter:drop-shadow(0 2px 5px rgba(0,0,0,.4));}
+        .ob-cc-chip{position:absolute;left:6%;top:39%;width:48px;height:38px;border-radius:6px;background:linear-gradient(135deg,#d8b56a,#b3863f);border:1px solid #8a6d3c;}
+        .ob-cc-number{position:absolute;left:6%;top:57%;right:6%;font-family:'Courier New',monospace;font-size:clamp(15px,4vw,22px);letter-spacing:.16em;color:#EFE7D2;}
+        .ob-cc-meta{position:absolute;left:6%;top:71%;display:flex;align-items:baseline;gap:12px;}
+        .ob-cc-lbl{font-size:8px;letter-spacing:.2em;color:var(--cream-gold);}
+        .ob-cc-val{font-family:'Courier New',monospace;font-size:14px;color:#EFE7D2;}
+        .ob-cc-holder{position:absolute;left:6%;bottom:7%;font-size:14px;letter-spacing:.14em;color:#EFE7D2;}
+        .ob-cc-network{position:absolute;right:6%;bottom:6%;font-size:18px;font-style:italic;color:#EFE7D2;}
 
         /* Rates */
         .ob-rates-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:42px;}
