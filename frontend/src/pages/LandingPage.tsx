@@ -150,11 +150,13 @@ const LandingPage: React.FC = () => {
 
         /* Services */
         .ob-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:42px;}
-        .ob-card{background:#fff;padding:30px 26px;border-radius:12px;border:1px solid var(--line);border-top:3px solid var(--gold-light);box-shadow:0 6px 20px rgba(31,107,74,.06);transition:transform .4s,box-shadow .4s;}
+        .ob-card{display:block;text-decoration:none;background:#fff;padding:30px 26px;border-radius:12px;border:1px solid var(--line);border-top:3px solid var(--gold-light);box-shadow:0 6px 20px rgba(31,107,74,.06);transition:transform .4s,box-shadow .4s;cursor:pointer;}
         .ob-card:hover{transform:translateY(-3px);box-shadow:0 16px 38px rgba(31,107,74,.14);}
+        .ob-card:hover .ob-card-link{color:var(--emerald);}
         .ob-card h3{font-size:24px;margin-bottom:10px;}
         .ob-card p{margin:0;color:var(--muted);font-size:17px;}
         .ob-card .ob-idx{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.2em;color:var(--gold);display:block;margin-bottom:12px;}
+        .ob-card-link{display:inline-block;margin-top:16px;font-size:14px;letter-spacing:.06em;color:var(--gold);font-weight:500;transition:color .3s;}
 
         /* Reserve card section */
         .ob-card-section{background:linear-gradient(135deg,var(--emerald-deep),var(--emerald));color:#fff;}
@@ -382,11 +384,12 @@ const LandingPage: React.FC = () => {
           <p className="ob-lead">Everything you bank with us, conducted with one standard of care.</p>
           <div className="ob-grid-3">
             {services.map((s, i) => (
-              <div className="ob-card" key={s.name}>
+              <a className="ob-card" key={s.name} href="/register">
                 <span className="ob-idx">{String(i + 1).padStart(2, "0")}</span>
                 <h3>{s.name}</h3>
                 <p>{s.body}</p>
-              </div>
+                <span className="ob-card-link">Open an account &rarr;</span>
+              </a>
             ))}
           </div>
         </div>
