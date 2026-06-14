@@ -9,6 +9,7 @@ import React, { useState } from "react";
 
 const LOGO_SRC = "/logo.png";
 const HERO_SRC = "/hero.jpg";
+const HERITAGE_SRC = "/heritage.jpg";
 
 const services = [
   { name: "Accounts", body: "Checking and savings held with century-old discipline. Open, fund, and manage every account from one ledger." },
@@ -20,9 +21,9 @@ const services = [
 ];
 
 const segments = [
-  { title: "Individuals", body: "Households seeking a permanent home for their savings and a banker who remembers their name." },
-  { title: "Businesses", body: "Firms that value a lender who understands the long arc of an enterprise rather than the quarter." },
-  { title: "Private Clients", body: "Families and principals entrusting substantial assets to an institution built to outlast them." },
+  { title: "Individuals", body: "Households seeking a permanent home for their savings and a banker who remembers their name.", img: "/seg_individuals_.jpg" },
+  { title: "Businesses", body: "Firms that value a lender who understands the long arc of an enterprise rather than the quarter.", img: "/seg-business.jpg" },
+  { title: "Private Clients", body: "Families and principals entrusting substantial assets to an institution built to outlast them.", img: "/seg-private.jpg" },
 ];
 
 const rates = [
@@ -40,9 +41,9 @@ const faqs = [
 ];
 
 const testimonials = [
-  { quote: "Three generations of my family have banked with Oakstone. They have never once given us reason to look elsewhere.", name: "Eleanor V.", role: "Private client, since 1987" },
-  { quote: "When my card was compromised abroad, it was frozen and reissued before I’d finished my coffee. That is service.", name: "Marcus T.", role: "Reserve cardholder" },
-  { quote: "They lent to my business when the numbers were hard to read. A banker, not an algorithm, made that call.", name: "Priya N.", role: "Business client" },
+  { quote: "Three generations of my family have banked with Oakstone. They have never once given us reason to look elsewhere.", name: "Eleanor V.", role: "Private client, since 1987", img: "/avatar-1.jpg" },
+  { quote: "When my card was compromised abroad, it was frozen and reissued before I’d finished my coffee. That is service.", name: "Marcus T.", role: "Reserve cardholder", img: "/avatar-2.jpg" },
+  { quote: "They lent to my business when the numbers were hard to read. A banker, not an algorithm, made that call.", name: "Raj N.", role: "Business client", img: "/avatar-3.jpg" },
 ];
 
 const FaqItem: React.FC<{ q: string; a: string }> = ({ q, a }) => {
@@ -147,8 +148,10 @@ const LandingPage: React.FC = () => {
         /* Heritage */
         .ob-heritage-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;}
         .ob-heritage p{margin:0 0 16px;color:var(--ink);}
-        .ob-heritage-seal{display:flex;justify-content:center;background:radial-gradient(circle,rgba(224,169,60,.16),rgba(224,169,60,0) 70%);border-radius:50%;}
-        .ob-heritage-seal img{width:230px;height:230px;object-fit:contain;filter:drop-shadow(0 8px 20px rgba(31,107,74,.22));}
+        .ob-heritage-visual{position:relative;}
+        .ob-heritage-photo{width:100%;height:auto;display:block;border-radius:10px;box-shadow:0 18px 44px rgba(31,107,74,.2);border:3px solid #fff;outline:1px solid var(--line);}
+        .ob-heritage-seal{display:flex;justify-content:center;background:radial-gradient(circle,rgba(224,169,60,.16),rgba(224,169,60,0) 70%);border-radius:50%;position:absolute;right:-18px;bottom:-26px;width:120px;height:120px;background-color:#fff;box-shadow:0 8px 22px rgba(0,0,0,.15);}
+        .ob-heritage-seal img{width:96px;height:96px;object-fit:contain;filter:drop-shadow(0 6px 14px rgba(31,107,74,.22));}
 
         /* Services */
         .ob-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:42px;}
@@ -208,9 +211,11 @@ const LandingPage: React.FC = () => {
         .ob-segments .ob-lead{color:rgba(255,255,255,.85);}
         .ob-segments .ob-rule{background:var(--cream-gold);}
         .ob-seg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:36px;margin-top:42px;}
-        .ob-seg{border-top:2px solid rgba(245,208,138,.5);padding-top:20px;}
-        .ob-seg h3{color:var(--cream-gold);font-size:25px;margin-bottom:12px;}
-        .ob-seg p{color:rgba(255,255,255,.88);margin:0;}
+        .ob-seg{background:rgba(255,255,255,.06);border:1px solid rgba(245,208,138,.25);border-radius:14px;overflow:hidden;text-align:left;}
+        .ob-seg-photo{width:100%;aspect-ratio:3/2;overflow:hidden;}
+        .ob-seg-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+        .ob-seg h3{color:var(--cream-gold);font-size:25px;margin:20px 24px 10px;}
+        .ob-seg p{color:rgba(255,255,255,.88);margin:0 24px 24px;}
 
         /* Security */
         .ob-security-list{list-style:none;padding:0;margin:36px 0 0;max-width:46em;}
@@ -238,18 +243,28 @@ const LandingPage: React.FC = () => {
         .ob-testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:42px;}
         .ob-testi-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:30px 28px;}
         .ob-testi-card .q{font-family:var(--display);font-style:italic;font-size:20px;color:var(--ink);line-height:1.5;}
-        .ob-testi-card .n{margin-top:18px;font-weight:500;color:var(--emerald);}
+        .ob-testi-person{display:flex;align-items:center;gap:14px;margin-top:20px;}
+        .ob-testi-avatar{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--gold-light);flex-shrink:0;}
+        .ob-testi-card .n{font-weight:500;color:var(--emerald);}
         .ob-testi-card .r{font-size:14px;color:var(--muted);}
+        .ob-security-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:48px;align-items:center;}
+        .ob-security-photo img{width:100%;height:auto;border-radius:12px;box-shadow:0 16px 40px rgba(31,107,74,.18);display:block;}
+        .ob-cta{position:relative;background:linear-gradient(135deg,rgba(22,81,58,.92),rgba(31,107,74,.85)),url('/cta-bg.jpg');background-size:cover;background-position:center;text-align:center;}
+        .ob-cta h2{color:#fff;font-size:44px;margin-bottom:14px;text-shadow:0 2px 8px rgba(0,0,0,.3);}
+        .ob-cta p{color:rgba(255,255,255,.9);font-size:19px;max-width:34em;margin:0 auto 30px;text-shadow:0 1px 4px rgba(0,0,0,.3);}
+        .ob-cta .ob-btn{font-size:16px;}
+        .ob-cta-btn{display:inline-block;font-size:16px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;padding:16px 40px;border-radius:7px;background:var(--cream-gold);color:var(--emerald-deep);font-weight:500;transition:background .3s;box-shadow:0 8px 22px rgba(0,0,0,.25);}
+        .ob-cta-btn:hover{background:#fff;}
 
         /* Presence */
-        .ob-presence-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:56px;margin-top:40px;}
-        .ob-branches{list-style:none;padding:0;margin:0;}
-        .ob-branches li{padding:16px 0;border-bottom:1px solid var(--line);}
-        .ob-branches .ob-city{font-family:var(--display);font-size:21px;color:var(--emerald);}
-        .ob-branches .ob-addr{font-size:15px;color:var(--muted);}
+        .ob-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:42px;}
+        .ob-step{text-align:center;padding:0 12px;}
+        .ob-step-num{width:54px;height:54px;margin:0 auto 18px;border-radius:50%;background:linear-gradient(135deg,var(--emerald-light),var(--emerald));color:#fff;font-family:var(--display);font-size:26px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(31,107,74,.25);}
+        .ob-step h3{font-size:24px;margin-bottom:10px;}
+        .ob-step p{margin:0;color:var(--muted);font-size:17px;}
 
         /* Contact */
-        .ob-contact-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;margin-top:40px;}
+        .ob-contact-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:40px;margin-top:40px;max-width:720px;margin-left:auto;margin-right:auto;}
         .ob-contact h3{font-size:22px;margin-bottom:8px;}
         .ob-contact a{color:var(--oxblood);text-decoration:none;}
         .ob-contact a:hover{text-decoration:underline;}
@@ -289,7 +304,7 @@ const LandingPage: React.FC = () => {
         .ob-stat-row { grid-template-columns: 1fr !important; max-width: 420px; margin: 0 auto; gap: 40px; }
         .ob-stat + .ob-stat { border-left: 0; border-top: 1px solid rgba(245,208,138,.3); padding-top: 32px; }
         .ob-testi-grid { grid-template-columns: 1fr !important; max-width: 640px; margin-left: auto; margin-right: auto; }
-        .ob-presence-grid { grid-template-columns: 1fr !important; max-width: 640px; margin-left: auto; margin-right: auto; gap: 36px; }
+        .ob-steps { grid-template-columns: 1fr !important; max-width: 460px; margin-left: auto; margin-right: auto; gap: 34px; }
         .ob-contact-grid { grid-template-columns: 1fr !important; max-width: 520px; margin-left: auto; margin-right: auto; text-align: center; gap: 32px; }
         .ob-section { text-align: center; }
         .ob-section .ob-rule { margin-left: auto; margin-right: auto; }
@@ -297,13 +312,12 @@ const LandingPage: React.FC = () => {
         .ob-faq { text-align: left; }
         .ob-security-list { text-align: left; }
         .ob-card-feats li { text-align: left; }
-        .ob-branches { text-align: left; }
 
         @media (max-width:860px){
           .ob-nav{display:none;}
           .ob-burger{display:flex;}
           .ob-mobile.show{display:flex;}
-          .ob-hero-inner,.ob-heritage-grid,.ob-grid-3,.ob-seg-grid,.ob-stat-row,.ob-presence-grid,.ob-contact-grid,.ob-card-grid,.ob-rates-grid,.ob-testi-grid{grid-template-columns:1fr;}
+          .ob-hero-inner,.ob-heritage-grid,.ob-grid-3,.ob-seg-grid,.ob-stat-row,.ob-steps,.ob-contact-grid,.ob-card-grid,.ob-rates-grid,.ob-testi-grid,.ob-security-grid{grid-template-columns:1fr;}
           .ob-hero h1{font-size:40px;}
           .ob-hero-art{order:-1;}
           .ob-stat+.ob-stat{border-left:0;border-top:1px solid rgba(245,208,138,.3);padding-top:28px;}
@@ -379,8 +393,11 @@ const LandingPage: React.FC = () => {
             <p>Drawing on the traditions of America's enduring financial institutions, Oakstone 1 Bank practices a philosophy of long-term wealth preservation.</p>
             <p>The oak on our seal is no ornament. It is the standard we hold ourselves to: rooted, deliberate, and stronger with every passing year.</p>
           </div>
-          <div className="ob-heritage-seal">
-            <img src={LOGO_SRC} alt="Oakstone 1 Bank seal" />
+          <div className="ob-heritage-visual">
+            <img className="ob-heritage-photo" src={HERITAGE_SRC} alt="Oakstone 1 Bank heritage" />
+            <div className="ob-heritage-seal">
+              <img src={LOGO_SRC} alt="Oakstone 1 Bank seal" />
+            </div>
           </div>
         </div>
       </section>
@@ -456,6 +473,7 @@ const LandingPage: React.FC = () => {
           <div className="ob-seg-grid">
             {segments.map((seg) => (
               <div className="ob-seg" key={seg.title}>
+                <div className="ob-seg-photo"><img src={seg.img} alt={seg.title} loading="lazy" /></div>
                 <h3>{seg.title}</h3>
                 <p>{seg.body}</p>
               </div>
@@ -470,12 +488,15 @@ const LandingPage: React.FC = () => {
           <p className="ob-eyebrow">Security &amp; trust</p>
           <hr className="ob-rule" />
           <h2>Your funds, protected without compromise.</h2>
-          <ul className="ob-security-list">
-            <li><span className="ob-k">Secure infrastructure</span><span className="ob-v">Every account is held on hardened, continuously audited banking systems.</span></li>
-            <li><span className="ob-k">Fraud protection</span><span className="ob-v">Transactions are screened in real time, with suspicious activity halted before it settles.</span></li>
-            <li><span className="ob-k">Account monitoring</span><span className="ob-v">Round-the-clock oversight and immediate alerts keep you informed of every movement.</span></li>
-            <li><span className="ob-k">Card controls</span><span className="ob-v">Freeze any card the instant it leaves your sight, and lift the hold just as quickly.</span></li>
-          </ul>
+          <div className="ob-security-grid">
+            <ul className="ob-security-list">
+              <li><span className="ob-k">Secure infrastructure</span><span className="ob-v">Every account is held on hardened, continuously audited banking systems.</span></li>
+              <li><span className="ob-k">Fraud protection</span><span className="ob-v">Transactions are screened in real time, with suspicious activity halted before it settles.</span></li>
+              <li><span className="ob-k">Account monitoring</span><span className="ob-v">Round-the-clock oversight and immediate alerts keep you informed of every movement.</span></li>
+              <li><span className="ob-k">Card controls</span><span className="ob-v">Freeze any card the instant it leaves your sight, and lift the hold just as quickly.</span></li>
+            </ul>
+            <div className="ob-security-photo"><img src="/security.jpg" alt="Digital security" loading="lazy" /></div>
+          </div>
         </div>
       </section>
 
@@ -500,8 +521,13 @@ const LandingPage: React.FC = () => {
             {testimonials.map((t) => (
               <div className="ob-testi-card" key={t.name}>
                 <div className="q">&ldquo;{t.quote}&rdquo;</div>
-                <div className="n">{t.name}</div>
-                <div className="r">{t.role}</div>
+                <div className="ob-testi-person">
+                  <img className="ob-testi-avatar" src={t.img} alt={t.name} loading="lazy" />
+                  <div>
+                    <div className="n">{t.name}</div>
+                    <div className="r">{t.role}</div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -519,23 +545,39 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Presence */}
-      <section className="ob-section ob-alt" id="presence">
+      {/* How it works */}
+      <section className="ob-section ob-alt" id="how">
         <div className="ob-wrap">
-          <p className="ob-eyebrow">Our presence</p>
+          <p className="ob-eyebrow">Getting started</p>
           <hr className="ob-rule" />
-          <h2>Visit us in person.</h2>
-          <div className="ob-presence-grid">
-            <div>
-              <p className="ob-lead" style={{ marginBottom: 0 }}>Our headquarters stands in the heart of the financial district, where it has conducted business for more than a century. We remain, by conviction, a bank you can walk into.</p>
+          <h2>How it works.</h2>
+          <p className="ob-lead">Opening an account takes about five minutes — and everything after is just as simple.</p>
+          <div className="ob-steps">
+            <div className="ob-step">
+              <div className="ob-step-num">1</div>
+              <h3>Open an account</h3>
+              <p>Tell us a few details and verify your identity. Most applications are reviewed within one business day.</p>
             </div>
-            <ul className="ob-branches">
-              <li><div className="ob-city">Headquarters</div><div className="ob-addr">1 Oakstone Plaza, Financial District</div></li>
-              <li><div className="ob-city">Boston</div><div className="ob-addr">220 Commonwealth Avenue</div></li>
-              <li><div className="ob-city">Chicago</div><div className="ob-addr">14 South LaSalle Street</div></li>
-              <li><div className="ob-city">Charleston</div><div className="ob-addr">88 Broad Street</div></li>
-            </ul>
+            <div className="ob-step">
+              <div className="ob-step-num">2</div>
+              <h3>Fund it securely</h3>
+              <p>Add money by transfer the moment you're approved. Your balance is protected from the first cent.</p>
+            </div>
+            <div className="ob-step">
+              <div className="ob-step-num">3</div>
+              <h3>Bank from anywhere</h3>
+              <p>Send money, manage cards, and track every transaction — any hour, from any device. No branch required.</p>
+            </div>
           </div>
+        </div>
+      </section>
+
+      {/* Closing CTA */}
+      <section className="ob-section ob-cta">
+        <div className="ob-wrap">
+          <h2>Your future deserves a permanent home.</h2>
+          <p>Join the clients who have trusted Oakstone 1 Bank for over a century. Opening an account takes only a few minutes.</p>
+          <a href="/register" className="ob-cta-btn">Open an Account</a>
         </div>
       </section>
 
@@ -546,9 +588,8 @@ const LandingPage: React.FC = () => {
           <hr className="ob-rule" />
           <h2>At your service.</h2>
           <div className="ob-contact-grid">
-            <div><h3>By telephone</h3><p><a href="tel:+18006253786">1-800-OAK-STON</a><br />Assistance available at all hours.</p></div>
-            <div><h3>By correspondence</h3><p><a href="mailto:support@oakstoneone.com">support@oakstoneone.com</a><br />Replies within one business day.</p></div>
-            <div><h3>In person</h3><p>Any branch, during banking hours.<br />No appointment required.</p></div>
+            <div><h3>By correspondence</h3><p><a href="mailto:support@oaskstoneone.com">support@oaskstoneone.com</a><br />Replies within one business day.</p></div>
+            <div><h3>Headquarters</h3><p>Oakstone 1 Bank, Financial District.<br />Correspondence by appointment.</p></div>
           </div>
         </div>
       </section>
