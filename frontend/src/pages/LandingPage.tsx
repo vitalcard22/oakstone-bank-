@@ -21,7 +21,7 @@ const services = [
 ];
 
 const segments = [
-  { title: "Individuals", body: "Households seeking a permanent home for their savings and a banker who remembers their name.", img: "/seg_individuals_.jpg" },
+  { title: "Individuals", body: "Households seeking a permanent home for their savings and a banker who remembers their name.", img: "/seg-individuals.jpg" },
   { title: "Businesses", body: "Firms that value a lender who understands the long arc of an enterprise rather than the quarter.", img: "/seg-business.jpg" },
   { title: "Private Clients", body: "Families and principals entrusting substantial assets to an institution built to outlast them.", img: "/seg-private.jpg" },
 ];
@@ -298,9 +298,11 @@ const LandingPage: React.FC = () => {
         .ob-card-copy { max-width: 600px; }
         .ob-card-feats { display: inline-block; text-align: left; }
         .ob-rates-grid { grid-template-columns: 1fr !important; max-width: 480px; margin-left: auto; margin-right: auto; }
-        .ob-seg-grid { grid-template-columns: 1fr !important; max-width: 640px; margin-left: auto; margin-right: auto; }
+        .ob-seg-grid { grid-template-columns: 1fr !important; max-width: 420px; margin-left: auto; margin-right: auto; }
         .ob-security-list { margin-left: auto; margin-right: auto; }
         .ob-security-list li { flex-direction: column; gap: 4px; }
+        .ob-security-grid { grid-template-columns: 1fr !important; max-width: 640px; margin-left: auto; margin-right: auto; gap: 32px; }
+        .ob-security-photo { max-width: 480px; margin: 0 auto; }
         .ob-stat-row { grid-template-columns: 1fr !important; max-width: 420px; margin: 0 auto; gap: 40px; }
         .ob-stat + .ob-stat { border-left: 0; border-top: 1px solid rgba(245,208,138,.3); padding-top: 32px; }
         .ob-testi-grid { grid-template-columns: 1fr !important; max-width: 640px; margin-left: auto; margin-right: auto; }
