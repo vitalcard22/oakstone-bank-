@@ -3,27 +3,42 @@ import { adminApi } from "../../services/api";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
+function Field({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-gray-400">{label}</p>
+      <p className="text-sm text-gray-800">{value && String(value).trim() ? value : "—"}</p>
+    </div>
+  );
+}
+
 export default function AdminKycPage() {
   const qc = useQueryClient();
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState<Record<string, boolean>>({});
 
   const { data: queue } = useQuery({
-    queryKey:      ["kyc-queue"],
-    queryFn:       () => adminApi.kycQueue().then((r) => r.data),
+    queryKey: ["kyc-queue"],
+    queryFn: () => adminApi.kycQueue().then((r) => r.data),
     refetchInterval: 15_000,
   });
 
   const approveMut = useMutation({
     mutationFn: (uid: string) => adminApi.approveKyc(uid),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ["kyc-queue"] }); toast.success("KYC approved"); },
-    onError:    () => toast.error("Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["kyc-queue"] }); toast.success("KYC approved"); },
+    onError: () => toast.error("Failed"),
   });
 
   const rejectMut = useMutation({
     mutationFn: ({ uid, reason }: { uid: string; reason: string }) => adminApi.rejectKyc(uid, reason),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ["kyc-queue"] }); toast.success("KYC rejected"); },
-    onError:    () => toast.error("Failed"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["kyc-queue"] }); toast.success("KYC rejected"); },
+    onError: () => toast.error("Failed"),
   });
+
+  const fmtDate = (d?: string) => {
+    if (!d) return "—";
+    try { return new Date(d).toLocaleDateString(); } catch { return d; }
+  };
 
   return (
     <div className="space-y-4">
@@ -32,36 +47,66 @@ export default function AdminKycPage() {
         <span className="badge-amber">{queue?.length ?? 0} pending</span>
       </div>
 
-      {queue?.map((u: any) => (
-        <div key={u.id} className="card p-5">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <p className="font-semibold text-gray-900">{u.first_name} {u.last_name}</p>
-              <p className="text-sm text-gray-400">{u.email}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Submitted {new Date(u.created_at).toLocaleDateString()}</p>
+      {queue?.map((u: any) => {
+        const addr = [u.address_street, u.address_unit, u.address_city && `${u.address_city},`, u.address_state, u.address_zip]
+          .filter(Boolean).join(" ");
+        const isOpen = open[u.id];
+        return (
+          <div key={u.id} className="card p-5">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <p className="font-semibold text-gray-900">{u.first_name} {u.middle_name ? u.middle_name + " " : ""}{u.last_name}</p>
+                <p className="text-sm text-gray-400">{u.email}{u.phone ? ` · ${u.phone}` : ""}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Submitted {fmtDate(u.created_at)}</p>
+              </div>
+              <span className="badge-amber capitalize">{u.kyc_status}</span>
             </div>
-            <span className="badge-amber capitalize">{u.kyc_status}</span>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => approveMut.mutate(u.id)} disabled={approveMut.isPending}
-              className="btn-primary text-xs py-1.5 px-4 bg-green-600 hover:bg-green-700">
-              Approve
-            </button>
-            <input
-              value={reasons[u.id] ?? ""}
-              onChange={(e) => setReasons((p) => ({ ...p, [u.id]: e.target.value }))}
-              placeholder="Rejection reason..."
-              className="input flex-1 text-xs py-1.5"
-            />
+
             <button
-              onClick={() => rejectMut.mutate({ uid: u.id, reason: reasons[u.id] ?? "Incomplete documents" })}
-              disabled={rejectMut.isPending}
-              className="btn-danger text-xs py-1.5 px-4">
-              Reject
+              onClick={() => setOpen((p) => ({ ...p, [u.id]: !p[u.id] }))}
+              className="text-xs text-navy-600 hover:underline mb-3"
+            >
+              {isOpen ? "▲ Hide application details" : "▼ View application details"}
             </button>
+
+            {isOpen && (
+              <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-3 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Field label="Date of birth" value={fmtDate(u.date_of_birth)} />
+                <Field label="SSN (last 4)" value={u.ssn_last4 ? `••• •• ${u.ssn_last4}` : "—"} />
+                <Field label="Citizenship" value={u.citizenship} />
+                <div className="col-span-2 md:col-span-3">
+                  <Field label="Residential address" value={addr || "—"} />
+                </div>
+                <Field label="ID type" value={u.id_type} />
+                <Field label="ID (last 4)" value={u.id_last4 ? `•••• ${u.id_last4}` : "—"} />
+                <Field label="ID issuing state" value={u.id_state} />
+                <Field label="Employment" value={u.employment_status} />
+                <Field label="Source of funds" value={u.source_of_funds} />
+                <Field label="Account requested" value={u.account_type_requested} />
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => approveMut.mutate(u.id)} disabled={approveMut.isPending}
+                className="btn-primary text-xs py-1.5 px-4 bg-green-600 hover:bg-green-700">
+                Approve
+              </button>
+              <input
+                value={reasons[u.id] ?? ""}
+                onChange={(e) => setReasons((p) => ({ ...p, [u.id]: e.target.value }))}
+                placeholder="Rejection reason..."
+                className="input flex-1 text-xs py-1.5"
+              />
+              <button
+                onClick={() => rejectMut.mutate({ uid: u.id, reason: reasons[u.id] ?? "Incomplete documents" })}
+                disabled={rejectMut.isPending}
+                className="btn-danger text-xs py-1.5 px-4">
+                Reject
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {!queue?.length && (
         <div className="text-center py-12 text-gray-400">

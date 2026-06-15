@@ -18,6 +18,25 @@ export async function runMigrations(): Promise<void> {
     await db.query(`DO $$ BEGIN CREATE TYPE loan_status AS ENUM ('draft','submitted','under_review','approved','rejected','active','paid_off'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
     await db.query(`DO $$ BEGIN CREATE TYPE alert_severity AS ENUM ('low','medium','high','critical'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
     await db.query(`CREATE TABLE IF NOT EXISTS users (id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), email TEXT UNIQUE NOT NULL, phone TEXT UNIQUE, password_hash TEXT NOT NULL, role user_role NOT NULL DEFAULT 'customer', first_name TEXT NOT NULL, last_name TEXT NOT NULL, kyc_status kyc_status NOT NULL DEFAULT 'pending', kyc_reviewed_at TIMESTAMPTZ, kyc_reviewed_by UUID, mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE, mfa_secret TEXT, is_active BOOLEAN NOT NULL DEFAULT TRUE, failed_login_attempts INT NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, last_login_at TIMESTAMPTZ, last_login_ip INET, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+
+    // --- KYC application fields (added safely; data-minimizing: only last-4 of SSN/ID stored) ---
+    await db.query(`ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS middle_name TEXT,
+      ADD COLUMN IF NOT EXISTS date_of_birth DATE,
+      ADD COLUMN IF NOT EXISTS ssn_last4 CHAR(4),
+      ADD COLUMN IF NOT EXISTS citizenship TEXT,
+      ADD COLUMN IF NOT EXISTS address_street TEXT,
+      ADD COLUMN IF NOT EXISTS address_unit TEXT,
+      ADD COLUMN IF NOT EXISTS address_city TEXT,
+      ADD COLUMN IF NOT EXISTS address_state TEXT,
+      ADD COLUMN IF NOT EXISTS address_zip TEXT,
+      ADD COLUMN IF NOT EXISTS id_type TEXT,
+      ADD COLUMN IF NOT EXISTS id_last4 CHAR(4),
+      ADD COLUMN IF NOT EXISTS id_state TEXT,
+      ADD COLUMN IF NOT EXISTS employment_status TEXT,
+      ADD COLUMN IF NOT EXISTS source_of_funds TEXT,
+      ADD COLUMN IF NOT EXISTS account_type_requested TEXT`);
+
     await db.query(`CREATE TABLE IF NOT EXISTS accounts (id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, account_number TEXT UNIQUE NOT NULL, routing_number TEXT NOT NULL DEFAULT '021000021', account_type account_type NOT NULL DEFAULT 'checking', status account_status NOT NULL DEFAULT 'pending', balance NUMERIC(18,2) NOT NULL DEFAULT 0.00, available_balance NUMERIC(18,2) NOT NULL DEFAULT 0.00, daily_limit NUMERIC(18,2) NOT NULL DEFAULT 2500.00, nickname TEXT, opened_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await db.query(`CREATE TABLE IF NOT EXISTS transactions (id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), reference_id TEXT UNIQUE NOT NULL, from_account_id UUID REFERENCES accounts(id), to_account_id UUID REFERENCES accounts(id), tx_type tx_type NOT NULL, status tx_status NOT NULL DEFAULT 'pending', amount NUMERIC(18,2) NOT NULL, fee NUMERIC(18,2) NOT NULL DEFAULT 0.00, description TEXT, metadata JSONB, ip_address INET, risk_score SMALLINT, flagged BOOLEAN NOT NULL DEFAULT FALSE, flagged_reason TEXT, processed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await db.query(`CREATE TABLE IF NOT EXISTS card_fee_config (id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), card_type card_type NOT NULL UNIQUE, application_fee NUMERIC(10,2) NOT NULL DEFAULT 0.00, fee_enabled BOOLEAN NOT NULL DEFAULT TRUE, annual_fee NUMERIC(10,2) NOT NULL DEFAULT 0.00, apr_min NUMERIC(6,4) NOT NULL, apr_max NUMERIC(6,4) NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
