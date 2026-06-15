@@ -63,7 +63,7 @@ export default function AdminLayout() {
             Customer view
           </NavLink>
           <button onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors">
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-white hover:text-white hover:bg-white/5 transition-colors">
             <LogOut size={15} />
             Sign out
           </button>

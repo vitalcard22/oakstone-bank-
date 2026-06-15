@@ -67,7 +67,7 @@ export default function AppLayout() {
               <div className="my-2 border-t border-white/10" />
               <NavLink to="/admin/dashboard" className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive ? 'bg-white/10 text-white' : 'text-white/65 hover:text-white hover:bg-white/5'
+                  isActive ? 'bg-white/10 text-white' : 'text-white hover:text-white hover:bg-white/5'
                 }`
               }>
                 <Shield size={15} className="flex-shrink-0" />
