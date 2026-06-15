@@ -24,12 +24,12 @@ export default function AdminLayout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
-  async function handleLogout() {
-    try { await authApi.logout(); } catch { /* ignore */ }
-    logout();
-    navigate('/');
-    toast.success('Signed out');
-  }
+  function handleLogout() {
+  try { authApi.logout().catch(() => {}); } catch { /* ignore */ }
+  logout();
+  navigate('/');
+  toast.success('Signed out');
+}
 
   return (
     <div className="min-h-screen flex bg-gray-50">
