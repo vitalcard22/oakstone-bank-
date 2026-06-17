@@ -2,16 +2,29 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../services/api";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { PlusCircle, MinusCircle, X, Clock, CreditCard } from "lucide-react";
+import { PlusCircle, MinusCircle, X, Clock, CreditCard, Hash } from "lucide-react";
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+
+const EMPTY_FORM = {
+  accountId: '',
+  amount: '',
+  description: '',
+  date: '',
+  bankName: '',
+  routingNumber: '',
+  externalAccountNumber: '',
+  transactionType: 'credit',
+  reference: '',
+  notes: '',
+};
 
 export default function AdminUsersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [panel, setPanel] = useState<'credit' | 'debit' | 'history' | null>(null);
-  const [form, setForm] = useState({ accountId: '', amount: '', description: '', date: '' });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users", search],
@@ -24,7 +37,7 @@ export default function AdminUsersPage() {
     enabled: !!selectedUser,
   });
 
-  const { data: userTxns } = useQuery({
+  const { data: userTxns, isLoading: txnLoading } = useQuery({
     queryKey: ["admin-user-txns", selectedUser?.id],
     queryFn: () => adminApi.getUserTransactions(selectedUser.id).then((r) => r.data),
     enabled: !!selectedUser && panel === 'history',
@@ -42,7 +55,8 @@ export default function AdminUsersPage() {
     onSuccess: () => {
       toast.success("Account credited successfully");
       qc.invalidateQueries({ queryKey: ["admin-user-accounts", selectedUser?.id] });
-      setForm({ accountId: '', amount: '', description: '', date: '' });
+      qc.invalidateQueries({ queryKey: ["admin-user-txns", selectedUser?.id] });
+      setForm({ ...EMPTY_FORM });
       setPanel(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || "Credit failed"),
@@ -53,7 +67,8 @@ export default function AdminUsersPage() {
     onSuccess: () => {
       toast.success("Account debited successfully");
       qc.invalidateQueries({ queryKey: ["admin-user-accounts", selectedUser?.id] });
-      setForm({ accountId: '', amount: '', description: '', date: '' });
+      qc.invalidateQueries({ queryKey: ["admin-user-txns", selectedUser?.id] });
+      setForm({ ...EMPTY_FORM });
       setPanel(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || "Debit failed"),
@@ -62,16 +77,19 @@ export default function AdminUsersPage() {
   const openPanel = (user: any, type: 'credit' | 'debit' | 'history') => {
     setSelectedUser(user);
     setPanel(type);
-    setForm({ accountId: '', amount: '', description: '', date: '' });
+    setForm({ ...EMPTY_FORM });
   };
 
   const closePanel = () => { setSelectedUser(null); setPanel(null); };
 
   const handleSubmit = () => {
-    if (!form.accountId || !form.amount) return toast.error("Please fill all required fields");
+    if (!form.accountId) return toast.error("Please select an account");
+    if (!form.amount || parseFloat(form.amount) <= 0) return toast.error("Please enter a valid amount");
     if (panel === 'credit') creditMut.mutate(form);
     if (panel === 'debit') debitMut.mutate(form);
   };
+
+  const isPending = creditMut.isPending || debitMut.isPending;
 
   return (
     <div className="space-y-4">
@@ -113,30 +131,22 @@ export default function AdminUsersPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => statusMut.mutate({ id: u.id, isActive: !u.is_active })}
-                      className="text-xs text-gray-500 hover:text-gray-700 underline"
-                    >
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => statusMut.mutate({ id: u.id, isActive: !u.is_active })}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline">
                       {u.is_active ? "Suspend" : "Activate"}
                     </button>
-                    <span className="text-gray-300">|</span>
-                    <button
-                      onClick={() => openPanel(u, 'credit')}
-                      className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1"
-                    >
+                    <span className="text-gray-200">|</span>
+                    <button onClick={() => openPanel(u, 'credit')}
+                      className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 font-medium">
                       <PlusCircle size={12} /> Credit
                     </button>
-                    <button
-                      onClick={() => openPanel(u, 'debit')}
-                      className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
-                    >
+                    <button onClick={() => openPanel(u, 'debit')}
+                      className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1 font-medium">
                       <MinusCircle size={12} /> Debit
                     </button>
-                    <button
-                      onClick={() => openPanel(u, 'history')}
-                      className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
-                    >
+                    <button onClick={() => openPanel(u, 'history')}
+                      className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium">
                       <Clock size={12} /> History
                     </button>
                   </div>
@@ -152,97 +162,134 @@ export default function AdminUsersPage() {
 
       {/* Credit / Debit Panel */}
       {(panel === 'credit' || panel === 'debit') && selectedUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className={`text-lg font-semibold ${panel === 'credit' ? 'text-green-700' : 'text-red-600'}`}>
-                  {panel === 'credit' ? 'Credit Account' : 'Debit Account'}
-                </h2>
-                <p className="text-sm text-gray-400">{selectedUser.first_name} {selectedUser.last_name} · {selectedUser.email}</p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className={`p-6 rounded-t-2xl ${panel === 'credit' ? 'bg-green-600' : 'bg-red-600'} text-white`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">{panel === 'credit' ? 'Credit Account' : 'Debit Account'}</h2>
+                  <p className="text-sm opacity-80 mt-0.5">{selectedUser.first_name} {selectedUser.last_name} · {selectedUser.email}</p>
+                </div>
+                <button onClick={closePanel} className="text-white/70 hover:text-white"><X size={22} /></button>
               </div>
-              <button onClick={closePanel} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
             </div>
 
-            <div className="space-y-4">
-              {/* Account selector */}
+            <div className="p-6 space-y-5">
               <div>
-                <label className="label">Select account</label>
-                <select
-                  className="input"
-                  value={form.accountId}
-                  onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}
-                >
+                <label className="label">Oakstone Account *</label>
+                <select className="input" value={form.accountId}
+                  onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
                   <option value="">Select account</option>
                   {userAccounts?.map((a: any) => (
                     <option key={a.id} value={a.id}>
-                      {a.account_type} ****{a.account_number?.slice(-4)} — {fmt(parseFloat(a.balance))}
+                      {a.account_type.charAt(0).toUpperCase() + a.account_type.slice(1)} Account
+                      — No. {a.account_number}
+                      — Balance: {fmt(parseFloat(a.balance || 0))}
                     </option>
                   ))}
                 </select>
+                {!userAccounts?.length && (
+                  <p className="text-xs text-amber-600 mt-1">No accounts found for this user.</p>
+                )}
               </div>
 
-              {/* Amount */}
               <div>
-                <label className="label">Amount</label>
+                <label className="label">Amount *</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                  <input
-                    type="number"
-                    className="input pl-7"
-                    placeholder="0.00"
-                    value={form.amount}
-                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                    min="0.01"
-                    step="0.01"
-                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+                  <input type="number" className="input pl-7 text-lg font-semibold" placeholder="0.00"
+                    value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                    min="0.01" step="0.01" />
                 </div>
               </div>
 
-              {/* Description */}
               <div>
-                <label className="label">Description</label>
-                <input
-                  className="input"
-                  placeholder={panel === 'credit' ? 'e.g. Account funding' : 'e.g. Fee deduction'}
-                  value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                />
+                <label className="label">Transaction Description *</label>
+                <input className="input" placeholder={panel === 'credit' ? 'e.g. Account funding, Salary payment, Refund' : 'e.g. Fee deduction, Withdrawal, Charge'}
+                  value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
               </div>
 
-              {/* Backdate */}
-              <div>
-                <label className="label">Transaction date (optional — for backdating)</label>
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={form.date}
-                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                />
-                <p className="text-xs text-gray-400 mt-1">Leave empty to use current date and time.</p>
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
+                  {panel === 'credit' ? 'Source Bank Details (optional)' : 'Destination Bank Details (optional)'}
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Bank Name</label>
+                    <input className="input" placeholder="e.g. Chase Bank, Wells Fargo"
+                      value={form.bankName} onChange={e => setForm(f => ({ ...f, bankName: e.target.value }))} />
+                  </div>
+
+                  <div>
+                    <label className="label">Transfer Method</label>
+                    <select className="input" value={form.transactionType}
+                      onChange={e => setForm(f => ({ ...f, transactionType: e.target.value }))}>
+                      <option value="credit">Direct Credit</option>
+                      <option value="wire">Wire Transfer</option>
+                      <option value="ach">ACH Transfer</option>
+                      <option value="zelle">Zelle</option>
+                      <option value="check">Check Deposit</option>
+                      <option value="cash">Cash Deposit</option>
+                      <option value="internal">Internal Transfer</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="label">Routing Number</label>
+                    <input className="input" placeholder="9-digit routing number"
+                      value={form.routingNumber} onChange={e => setForm(f => ({ ...f, routingNumber: e.target.value }))}
+                      maxLength={9} />
+                  </div>
+
+                  <div>
+                    <label className="label">External Account Number</label>
+                    <input className="input" placeholder="Account number"
+                      value={form.externalAccountNumber} onChange={e => setForm(f => ({ ...f, externalAccountNumber: e.target.value }))} />
+                  </div>
+
+                  <div>
+                    <label className="label">Reference / Memo</label>
+                    <input className="input" placeholder="e.g. INV-2024-001, Rent payment"
+                      value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} />
+                  </div>
+
+                  <div>
+                    <label className="label">Transaction Date (for backdating)</label>
+                    <input type="datetime-local" className="input"
+                      value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+                    <p className="text-xs text-gray-400 mt-1">Leave empty for current date/time.</p>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="label">Admin Notes (internal only)</label>
+                  <textarea className="input resize-none h-20" placeholder="Internal notes — not visible to the customer..."
+                    value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
               </div>
+
+              {form.accountId && form.amount && (
+                <div className={`rounded-xl p-4 ${panel === 'credit' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transaction Summary</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-gray-400">Account:</span> <span className="font-medium">{userAccounts?.find((a: any) => a.id === form.accountId)?.account_number}</span></div>
+                    <div><span className="text-gray-400">Amount:</span> <span className={`font-bold ${panel === 'credit' ? 'text-green-700' : 'text-red-600'}`}>{panel === 'credit' ? '+' : '-'}{fmt(parseFloat(form.amount || '0'))}</span></div>
+                    {form.bankName && <div><span className="text-gray-400">Bank:</span> <span className="font-medium">{form.bankName}</span></div>}
+                    {form.transactionType && <div><span className="text-gray-400">Method:</span> <span className="font-medium capitalize">{form.transactionType}</span></div>}
+                    {form.date && <div><span className="text-gray-400">Date:</span> <span className="font-medium">{new Date(form.date).toLocaleDateString()}</span></div>}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleSubmit}
-                  disabled={creditMut.isPending || debitMut.isPending}
-                  className={`flex-1 py-3 rounded-lg text-white text-sm font-medium transition-colors ${
-                    panel === 'credit'
-                      ? 'bg-green-600 hover:bg-green-700'
-                      : 'bg-red-600 hover:bg-red-700'
-                  }`}
-                >
-                  {creditMut.isPending || debitMut.isPending
-                    ? 'Processing...'
-                    : panel === 'credit' ? 'Credit account' : 'Debit account'
-                  }
+                <button onClick={handleSubmit} disabled={isPending}
+                  className={`flex-1 py-3 rounded-xl text-white text-sm font-semibold transition-colors ${
+                    panel === 'credit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                  } disabled:opacity-60`}>
+                  {isPending ? 'Processing...' : panel === 'credit' ? '✓ Confirm Credit' : '✓ Confirm Debit'}
                 </button>
-                <button
-                  onClick={closePanel}
-                  className="px-5 py-3 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
+                <button onClick={closePanel}
+                  className="px-6 py-3 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                   Cancel
                 </button>
               </div>
@@ -253,75 +300,135 @@ export default function AdminUsersPage() {
 
       {/* Transaction History Panel */}
       {panel === 'history' && selectedUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Transaction History</h2>
-                <p className="text-sm text-gray-400">{selectedUser.first_name} {selectedUser.last_name} · {selectedUser.email}</p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-emerald-800 p-6 rounded-t-2xl text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">Transaction History</h2>
+                  <p className="text-sm opacity-80 mt-0.5">{selectedUser.first_name} {selectedUser.last_name} · {selectedUser.email}</p>
+                </div>
+                <button onClick={closePanel} className="text-white/70 hover:text-white"><X size={22} /></button>
               </div>
-              <button onClick={closePanel} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
             </div>
 
-            {/* Accounts summary */}
-            {userAccounts?.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                {userAccounts.map((a: any) => (
-                  <div key={a.id} className="bg-gray-50 rounded-xl p-3 flex items-center gap-3">
-                    <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                      <CreditCard size={14} className="text-emerald-700" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400 capitalize">{a.account_type} ****{a.account_number?.slice(-4)}</p>
-                      <p className="font-semibold text-gray-900 text-sm">{fmt(parseFloat(a.balance))}</p>
-                    </div>
+            <div className="p-6 space-y-5">
+              {userAccounts?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Accounts</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {userAccounts.map((a: any) => (
+                      <div key={a.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CreditCard size={14} className="text-emerald-600" />
+                          <span className="text-xs font-medium text-gray-500 capitalize">{a.account_type}</span>
+                        </div>
+                        <p className="text-xl font-bold text-gray-900">{fmt(parseFloat(a.balance || 0))}</p>
+                        <div className="mt-2 space-y-0.5">
+                          <p className="text-xs text-gray-400 flex items-center gap-1">
+                            <Hash size={10} /> <span className="font-mono">{a.account_number}</span>
+                          </p>
+                          <p className="text-xs text-gray-400">Available: {fmt(parseFloat(a.available_balance || 0))}</p>
+                          <p className="text-xs text-gray-400">Status: <span className={a.status === 'active' ? 'text-green-600 font-medium' : 'text-red-500'}>{a.status}</span></p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Transactions */}
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {["Date", "Type", "Description", "Amount", "Status"].map(h => (
-                    <th key={h} className="text-left pb-2 text-xs text-gray-400 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {!userTxns?.length && (
-                  <tr><td colSpan={5} className="text-center py-8 text-sm text-gray-400">No transactions found</td></tr>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Transactions (last 50)</p>
+                {txnLoading && <p className="text-center py-8 text-sm text-gray-400">Loading transactions...</p>}
+                {!txnLoading && !userTxns?.length && (
+                  <div className="text-center py-12 text-gray-400">
+                    <Clock size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No transactions found</p>
+                  </div>
                 )}
-                {userTxns?.map((t: any) => (
-                  <tr key={t.id} className="border-b border-gray-50 last:border-0">
-                    <td className="py-3 text-gray-400 text-xs">{new Date(t.created_at).toLocaleDateString()}</td>
-                    <td className="py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        t.tx_type === 'credit' ? 'bg-green-100 text-green-700' :
-                        t.tx_type === 'debit' ? 'bg-red-100 text-red-600' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
-                        {t.tx_type}
-                      </span>
-                    </td>
-                    <td className="py-3 text-gray-600 max-w-xs truncate">{t.description || '—'}</td>
-                    <td className={`py-3 font-mono font-semibold ${
-                      t.tx_type === 'credit' ? 'text-green-600' : 'text-red-500'
-                    }`}>
-                      {t.tx_type === 'credit' ? '+' : '-'}{fmt(parseFloat(t.amount))}
-                    </td>
-                    <td className="py-3">
-                      <span className={`text-xs ${t.status === 'completed' ? 'text-green-600' : 'text-amber-500'}`}>
-                        {t.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                {userTxns?.length > 0 && (
+                  <div className="space-y-2">
+                    {userTxns.map((t: any) => {
+                      const meta = t.metadata ? (typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata) : {};
+                      return (
+                        <div key={t.id} className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50/50 transition-colors">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold ${
+                                t.tx_type === 'credit' ? 'bg-green-100 text-green-700' :
+                                t.tx_type === 'debit' ? 'bg-red-100 text-red-600' :
+                                'bg-blue-100 text-blue-700'
+                              }`}>
+                                {t.tx_type === 'credit' ? '+' : t.tx_type === 'debit' ? '−' : '↔'}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-900 text-sm">{t.description || 'Transaction'}</p>
+                                <p className="text-xs text-gray-400">
+                                  {new Date(t.created_at).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-lg font-bold ${t.tx_type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
+                                {t.tx_type === 'credit' ? '+' : '−'}{fmt(parseFloat(t.amount))}
+                              </p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${t.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {t.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-3 bg-gray-50 rounded-lg p-3 text-xs">
+                            <div>
+                              <p className="text-gray-400 mb-0.5">Reference ID</p>
+                              <p className="font-mono font-medium text-gray-700 truncate">{t.reference_id || '—'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400 mb-0.5">Type</p>
+                              <p className="font-medium text-gray-700 capitalize">{t.tx_type}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400 mb-0.5">Method</p>
+                              <p className="font-medium text-gray-700 capitalize">{meta.transactionType || t.tx_type || '—'}</p>
+                            </div>
+                            {meta.bankName && (
+                              <div>
+                                <p className="text-gray-400 mb-0.5">Bank Name</p>
+                                <p className="font-medium text-gray-700">{meta.bankName}</p>
+                              </div>
+                            )}
+                            {meta.routingNumber && (
+                              <div>
+                                <p className="text-gray-400 mb-0.5">Routing Number</p>
+                                <p className="font-mono font-medium text-gray-700">{meta.routingNumber}</p>
+                              </div>
+                            )}
+                            {meta.externalAccountNumber && (
+                              <div>
+                                <p className="text-gray-400 mb-0.5">Ext. Account No.</p>
+                                <p className="font-mono font-medium text-gray-700">****{meta.externalAccountNumber?.slice(-4)}</p>
+                              </div>
+                            )}
+                            {meta.reference && (
+                              <div>
+                                <p className="text-gray-400 mb-0.5">Memo / Reference</p>
+                                <p className="font-medium text-gray-700">{meta.reference}</p>
+                              </div>
+                            )}
+                            {meta.notes && (
+                              <div className="col-span-3">
+                                <p className="text-gray-400 mb-0.5">Admin Notes</p>
+                                <p className="font-medium text-gray-600 italic">{meta.notes}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
