@@ -12,12 +12,16 @@ const HERO_SRC = "/hero.jpg";
 const HERITAGE_SRC = "/heritage.jpg";
 
 const services = [
-  { name: "Accounts", body: "Checking and savings held with century-old discipline. Open, fund, and manage every account from one ledger." },
-  { name: "Transfers", body: "Move funds between your accounts or to another party — settled securely, recorded permanently." },
+  { name: "Accounts", body: "Checking, savings, and money market accounts held with century-old discipline. Open, fund, and manage every account from one ledger." },
+  { name: "Transfers", body: "Move funds between your accounts or to another party — settled securely, recorded permanently, and confirmed instantly." },
   { name: "Send Money", body: "Pay a person directly, or send by Zelle. Quick when you need it, with the safeguards of an old institution." },
   { name: "Cards", body: "Apply for a credit card, review your line, and freeze a card in an instant if it ever leaves your sight." },
   { name: "Loans", body: "Apply for lending against a future you can see. Considered terms, reviewed by people, not algorithms alone." },
   { name: "Bill Pay", body: "Settle recurring obligations on schedule, with every payment monitored and accounted for." },
+  { name: "Investment Account", body: "Build long-term wealth with access to stocks, ETFs, and bonds. Real-time portfolio tracking with no trading fees on ETFs." },
+  { name: "Pension (SIPP)", body: "A tax-advantaged way to save for retirement. Contributions benefit from tax relief, with flexible access from age 55." },
+  { name: "ISA", body: "Save up to $20,000 per year completely tax-free. Interest, dividends and gains sheltered — with flexible withdrawals anytime." },
+  { name: "Fixed Deposit", body: "Lock in a guaranteed interest rate for 3 to 24 months. Know exactly what you will earn before you commit a single dollar." },
 ];
 
 const segments = [
