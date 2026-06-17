@@ -75,8 +75,6 @@ const ReserveCard: React.FC = () => (
     <div className="ob-cc-nfc"><span /><span /><span /></div>
     <div className="ob-cc-number">4914&nbsp;&nbsp;0001&nbsp;&nbsp;1914&nbsp;&nbsp;0001</div>
     <div className="ob-cc-meta">
-      <span className="ob-cc-lbl">VALID THRU</span>
-      <span className="ob-cc-val">12 / 30</span>
     </div>
     <div className="ob-cc-holder">Cardholder Name</div>
     <div className="ob-cc-network">VISA</div>
