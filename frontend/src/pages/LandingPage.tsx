@@ -416,7 +416,6 @@ const LandingPage: React.FC = () => {
           <div className="ob-grid-3">
             {services.map((s, i) => (
               <a className="ob-card" key={s.name} href="/register">
-                <span className="ob-idx">{String(i + 1).padStart(2, "0")}</span>
                 <h3>{s.name}</h3>
                 <p>{s.body}</p>
                 <span className="ob-card-link">Open an account &rarr;</span>
