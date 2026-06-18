@@ -56,7 +56,7 @@ export async function kycQueue(_req: Request, res: Response, next: NextFunction)
   try {
     const { rows } = await getDb().query(
       `SELECT k.*, u.email, u.first_name, u.last_name
-       FROM kyc_applications k JOIN users u ON u.id=k.user_id
+       FROM kyc_applications k JOIN users u ON u.id::text=k.user_id::text
        WHERE k.status='pending'
        ORDER BY k.created_at ASC`
     );
@@ -69,19 +69,19 @@ export async function approveKyc(req: Request, res: Response, next: NextFunction
   try {
     const db = getDb();
     const { rows: [app] } = await db.query(
-      'SELECT k.*, u.email, u.first_name FROM kyc_applications k JOIN users u ON u.id=k.user_id WHERE k.user_id=$1 ORDER BY k.created_at DESC LIMIT 1',
+      'SELECT k.*, u.email, u.first_name FROM kyc_applications k JOIN users u ON u.id::text=k.user_id::text WHERE k.user_id::text=$1::text ORDER BY k.created_at DESC LIMIT 1',
       [req.params.userId]
     );
     if (!app) throw new AppError('Application not found', 404);
 
     await db.query(
-      'UPDATE kyc_applications SET status=\'approved\', reviewed_by=$1, reviewed_at=NOW() WHERE user_id=$2',
+      'UPDATE kyc_applications SET status=\'approved\', reviewed_by=$1::text, reviewed_at=NOW() WHERE user_id::text=$2::text',
       [(req as any).user.id, req.params.userId]
     );
-    await db.query('UPDATE users SET kyc_status=\'approved\' WHERE id=$1', [req.params.userId]);
+    await db.query('UPDATE users SET kyc_status=\'approved\' WHERE id::text=$1::text', [req.params.userId]);
 
     // Create default checking account if none exists
-    const { rows: existing } = await db.query('SELECT id FROM accounts WHERE user_id=$1', [req.params.userId]);
+    const { rows: existing } = await db.query('SELECT id FROM accounts WHERE user_id::text=$1::text', [req.params.userId]);
     if (!existing.length) {
       const acctNum = `OB${Date.now().toString().slice(-10)}`;
       await db.query(
@@ -103,16 +103,16 @@ export async function rejectKyc(req: Request, res: Response, next: NextFunction)
     const { reason } = req.body;
     const db = getDb();
     const { rows: [app] } = await db.query(
-      'SELECT k.*, u.email, u.first_name FROM kyc_applications k JOIN users u ON u.id=k.user_id WHERE k.user_id=$1 ORDER BY k.created_at DESC LIMIT 1',
+      'SELECT k.*, u.email, u.first_name FROM kyc_applications k JOIN users u ON u.id::text=k.user_id::text WHERE k.user_id::text=$1::text ORDER BY k.created_at DESC LIMIT 1',
       [req.params.userId]
     );
     if (!app) throw new AppError('Application not found', 404);
 
     await db.query(
-      'UPDATE kyc_applications SET status=\'rejected\', review_notes=$1, reviewed_by=$2, reviewed_at=NOW() WHERE user_id=$3',
+      'UPDATE kyc_applications SET status=\'rejected\', review_notes=$1, reviewed_by=$2::text, reviewed_at=NOW() WHERE user_id::text=$3::text',
       [reason, (req as any).user.id, req.params.userId]
     );
-    await db.query('UPDATE users SET kyc_status=\'rejected\' WHERE id=$1', [req.params.userId]);
+    await db.query('UPDATE users SET kyc_status=\'rejected\' WHERE id::text=$1::text', [req.params.userId]);
 
     await auditLog({ actorId: (req as any).user.id, action: 'admin.kyc.reject', entityId: req.params.userId });
     sendApplicationRejected(app.email, app.first_name, reason).catch(() => {});
@@ -303,7 +303,7 @@ export async function getAuditLog(_req: Request, res: Response, next: NextFuncti
 export async function getUserAccounts(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { rows } = await getDb().query(
-      'SELECT * FROM accounts WHERE user_id=$1 ORDER BY created_at ASC',
+      'SELECT * FROM accounts WHERE user_id::text=$1::text ORDER BY created_at ASC',
       [req.params.id]
     );
     res.json(rows);
@@ -316,7 +316,7 @@ export async function createUserAccount(req: Request, res: Response, next: NextF
     const db = getDb();
     const userId = req.params.id;
 
-    const { rows: existing } = await db.query('SELECT id FROM accounts WHERE user_id=$1', [userId]);
+    const { rows: existing } = await db.query('SELECT id FROM accounts WHERE user_id::text=$1::text', [userId]);
     if (existing.length > 0) {
       res.json({ message: 'Account already exists', account: existing[0] });
       return;
@@ -340,7 +340,7 @@ export async function getUserTransactions(req: Request, res: Response, next: Nex
     const { rows } = await getDb().query(
       `SELECT t.* FROM transactions t
        JOIN accounts a ON (a.id=t.from_account_id OR a.id=t.to_account_id)
-       WHERE a.user_id=$1
+       WHERE a.user_id::text=$1::text
        ORDER BY t.created_at DESC LIMIT 50`,
       [req.params.id]
     );
@@ -435,7 +435,7 @@ export async function deleteUser(req: Request, res: Response, next: NextFunction
     if (!user) throw new AppError('User not found', 404);
     if (user.role === 'admin') throw new AppError('Cannot delete admin accounts', 403);
 
-    await db.query('DELETE FROM transactions WHERE from_account_id IN (SELECT id FROM accounts WHERE user_id=$1) OR to_account_id IN (SELECT id FROM accounts WHERE user_id=$1)', [userId]);
+    await db.query('DELETE FROM transactions WHERE from_account_id IN (SELECT id FROM accounts WHERE user_id::text=$1::text) OR to_account_id IN (SELECT id FROM accounts WHERE user_id::text=$1::text)', [userId]);
     await db.query('DELETE FROM accounts WHERE user_id=$1', [userId]);
     await db.query('DELETE FROM kyc_applications WHERE user_id=$1', [userId]);
     await db.query('DELETE FROM card_applications WHERE user_id=$1', [userId]);

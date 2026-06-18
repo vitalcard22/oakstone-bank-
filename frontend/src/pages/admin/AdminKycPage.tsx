@@ -50,20 +50,20 @@ export default function AdminKycPage() {
       {queue?.map((u: any) => {
         const addr = [u.address_street, u.address_unit, u.address_city && `${u.address_city},`, u.address_state, u.address_zip]
           .filter(Boolean).join(" ");
-        const isOpen = open[u.id];
+        const isOpen = open[u.user_id];
         return (
-          <div key={u.id} className="card p-5">
+          <div key={u.user_id} className="card p-5">
             <div className="flex justify-between items-start mb-3">
               <div>
                 <p className="font-semibold text-gray-900">{u.first_name} {u.middle_name ? u.middle_name + " " : ""}{u.last_name}</p>
                 <p className="text-sm text-gray-400">{u.email}{u.phone ? ` · ${u.phone}` : ""}</p>
                 <p className="text-xs text-gray-400 mt-0.5">Submitted {fmtDate(u.created_at)}</p>
               </div>
-              <span className="badge-amber capitalize">{u.kyc_status}</span>
+              <span className="badge-amber capitalize">{u.status ?? u.kyc_status}</span>
             </div>
 
             <button
-              onClick={() => setOpen((p) => ({ ...p, [u.id]: !p[u.id] }))}
+              onClick={() => setOpen((p) => ({ ...p, [u.user_id]: !p[u.user_id] }))}
               className="text-xs text-navy-600 hover:underline mb-3"
             >
               {isOpen ? "▲ Hide application details" : "▼ View application details"}
@@ -73,12 +73,12 @@ export default function AdminKycPage() {
               <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-3 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Field label="Date of birth" value={fmtDate(u.date_of_birth)} />
                 <Field label="SSN (last 4)" value={u.ssn_last4 ? `••• •• ${u.ssn_last4}` : "—"} />
-                <Field label="Citizenship" value={u.citizenship} />
+                <Field label="Citizenship" value={u.citizenship ?? u.nationality} />
                 <div className="col-span-2 md:col-span-3">
-                  <Field label="Residential address" value={addr || "—"} />
+                  <Field label="Residential address" value={addr || (u.address_line1 ? [u.address_line1, u.address_line2, u.city, u.state].filter(Boolean).join(", ") : "—")} />
                 </div>
                 <Field label="ID type" value={u.id_type} />
-                <Field label="ID (last 4)" value={u.id_last4 ? `•••• ${u.id_last4}` : "—"} />
+                <Field label="ID (last 4)" value={u.id_last4 ?? (u.id_number ? `•••• ${u.id_number}` : "—")} />
                 <Field label="ID issuing state" value={u.id_state} />
                 <Field label="Employment" value={u.employment_status} />
                 <Field label="Source of funds" value={u.source_of_funds} />
@@ -87,18 +87,18 @@ export default function AdminKycPage() {
             )}
 
             <div className="flex gap-2">
-              <button onClick={() => approveMut.mutate(u.id)} disabled={approveMut.isPending}
+              <button onClick={() => approveMut.mutate(u.user_id)} disabled={approveMut.isPending}
                 className="btn-primary text-xs py-1.5 px-4 bg-green-600 hover:bg-green-700">
                 Approve
               </button>
               <input
-                value={reasons[u.id] ?? ""}
-                onChange={(e) => setReasons((p) => ({ ...p, [u.id]: e.target.value }))}
+                value={reasons[u.user_id] ?? ""}
+                onChange={(e) => setReasons((p) => ({ ...p, [u.user_id]: e.target.value }))}
                 placeholder="Rejection reason..."
                 className="input flex-1 text-xs py-1.5"
               />
               <button
-                onClick={() => rejectMut.mutate({ uid: u.id, reason: reasons[u.id] ?? "Incomplete documents" })}
+                onClick={() => rejectMut.mutate({ uid: u.user_id, reason: reasons[u.user_id] ?? "Incomplete documents" })}
                 disabled={rejectMut.isPending}
                 className="btn-danger text-xs py-1.5 px-4">
                 Reject
