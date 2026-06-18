@@ -23,6 +23,8 @@ body('email').isEmail().normalizeEmail(),
 body('password').notEmpty(),
 validate, c.login);
 
+r.post('/login/verify-code', c.completeLoginCode);
+
 r.post('/mfa/complete', c.completeMfa);
 r.post('/refresh', c.refreshToken);
 r.post('/logout', authenticate, c.logout);
@@ -32,5 +34,7 @@ r.post('/mfa/setup', authenticate, c.setupMfa);
 r.post('/mfa/verify', authenticate, c.verifyMfa);
 r.post('/forgot-password', body('email').isEmail(), validate, c.forgotPassword);
 r.post('/reset-password', c.resetPassword);
+r.get('/verify-email', c.verifyEmail);
+r.post('/verify-email', c.verifyEmail);
 
 export default r;

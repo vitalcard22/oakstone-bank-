@@ -35,7 +35,10 @@ export async function runMigrations(): Promise<void> {
       ADD COLUMN IF NOT EXISTS id_state TEXT,
       ADD COLUMN IF NOT EXISTS employment_status TEXT,
       ADD COLUMN IF NOT EXISTS source_of_funds TEXT,
-      ADD COLUMN IF NOT EXISTS account_type_requested TEXT`);
+      ADD COLUMN IF NOT EXISTS account_type_requested TEXT,
+      ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS email_verify_token TEXT,
+      ADD COLUMN IF NOT EXISTS email_verify_expires TIMESTAMPTZ`);
 
     await db.query(`CREATE TABLE IF NOT EXISTS accounts (id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, account_number TEXT UNIQUE NOT NULL, routing_number TEXT NOT NULL DEFAULT '021000021', account_type account_type NOT NULL DEFAULT 'checking', status account_status NOT NULL DEFAULT 'pending', balance NUMERIC(18,2) NOT NULL DEFAULT 0.00, available_balance NUMERIC(18,2) NOT NULL DEFAULT 0.00, daily_limit NUMERIC(18,2) NOT NULL DEFAULT 2500.00, nickname TEXT, opened_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await db.query(`CREATE TABLE IF NOT EXISTS transactions (id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), reference_id TEXT UNIQUE NOT NULL, from_account_id UUID REFERENCES accounts(id), to_account_id UUID REFERENCES accounts(id), tx_type tx_type NOT NULL, status tx_status NOT NULL DEFAULT 'pending', amount NUMERIC(18,2) NOT NULL, fee NUMERIC(18,2) NOT NULL DEFAULT 0.00, description TEXT, metadata JSONB, ip_address INET, risk_score SMALLINT, flagged BOOLEAN NOT NULL DEFAULT FALSE, flagged_reason TEXT, processed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);

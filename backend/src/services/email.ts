@@ -1,90 +1,128 @@
-// Email service — sends via SendGrid's REST API using global fetch (no extra dependency).
-// Requires env vars: SENDGRID_API_KEY, EMAIL_FROM, and optional EMAIL_FROM_NAME, FRONTEND_URL.
-// If SENDGRID_API_KEY is not set, emails are logged to console instead (safe fallback).
+import { Resend } from 'resend';
 
-const API_URL = 'https://api.sendgrid.com/v3/mail/send';
+const resend = new Resend(process.env.RESEND_API_KEY);
+const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+const fromName = process.env.EMAIL_FROM_NAME ?? 'Oakstone 1 Bank';
 
-function brandShell(title: string, bodyHtml: string): string {
-  const logo = (process.env.FRONTEND_URL ?? '') + '/logo.png';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-  <body style="margin:0;background:#f4f7f5;font-family:Georgia,'Times New Roman',serif;color:#33322C;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7f5;padding:32px 0;">
-      <tr><td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08);">
-          <tr><td style="background:linear-gradient(135deg,#1F6B4A,#16513A);padding:28px 32px;text-align:center;">
-            <img src="${logo}" alt="Oakstone 1 Bank" width="48" height="48" style="display:inline-block;vertical-align:middle;"/>
-            <div style="color:#ffffff;font-size:22px;font-weight:600;margin-top:8px;letter-spacing:.02em;">Oakstone 1 Bank</div>
-            <div style="color:#F5D08A;font-size:11px;letter-spacing:.28em;text-transform:uppercase;margin-top:4px;">Established MCMXIV</div>
-          </td></tr>
-          <tr><td style="padding:34px 36px;">
-            <h1 style="color:#1F6B4A;font-size:24px;margin:0 0 16px;">${title}</h1>
-            ${bodyHtml}
-          </td></tr>
-          <tr><td style="background:#16513A;padding:20px 36px;text-align:center;">
-            <div style="color:rgba(255,255,255,.75);font-size:12px;">© 2000–2026 Oakstone 1 Bank · Member FDIC</div>
-          </td></tr>
-        </table>
-        <div style="color:#9a988c;font-size:11px;margin-top:16px;">This message was sent by Oakstone 1 Bank. Please do not reply to this email.</div>
-      </td></tr>
-    </table>
-  </body></html>`;
-}
-
-async function send(to: string, subject: string, html: string, text: string): Promise<void> {
-  const apiKey = process.env.SENDGRID_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  const fromName = process.env.EMAIL_FROM_NAME ?? 'Oakstone 1 Bank';
-
-  // Safe fallback: if not configured, log instead of failing the request.
-  if (!apiKey || !from) {
+async function send(to: string, subject: string, html: string, text: string) {
+  if (!process.env.RESEND_API_KEY) {
     console.log(`[Email:fallback] To:${to} | ${subject}\n${text}`);
     return;
   }
-
   try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: from, name: fromName },
-        subject,
-        content: [
-          { type: 'text/plain', value: text },
-          { type: 'text/html', value: html },
-        ],
-      }),
+    const { error } = await resend.emails.send({
+      from: `${fromName} <${from}>`,
+      to,
+      subject,
+      html,
+      text,
     });
-    if (!res.ok) {
-      const detail = await res.text();
-      console.error(`[Email] SendGrid error ${res.status}: ${detail}`);
-    }
+    if (error) console.error('[Email] Resend error:', error);
   } catch (e: any) {
-    console.error('[Email] Send failed:', e.message);
+    console.error('[Email] Exception:', e.message);
   }
 }
 
-export async function sendApplicationConfirmation(to: string, firstName: string): Promise<void> {
-  const html = brandShell(
-    'Application received',
+function brandShell(title: string, body: string) {
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+      <div style="background:#1F6B4A;padding:24px 32px;">
+        <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">Oakstone 1 Bank</h1>
+      </div>
+      <div style="padding:32px;">
+        <h2 style="color:#1F6B4A;margin:0 0 16px;">${title}</h2>
+        ${body}
+      </div>
+      <div style="background:#f5f5f5;padding:16px 32px;font-size:12px;color:#888;">
+        &copy; ${new Date().getFullYear()} Oakstone 1 Bank. This is a prototype system.
+      </div>
+    </div>`;
+}
+
+export async function sendLoginCode(to: string, code: string): Promise<void> {
+  const html = brandShell('Your sign-in code',
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Use the code below to complete your sign-in to Oakstone 1 Bank.</p>
+     <div style="text-align:center;margin:24px 0;">
+       <div style="display:inline-block;background:#F7FBF8;border:1px solid #E9E3D4;border-radius:10px;padding:18px 32px;font-family:'Courier New',monospace;font-size:34px;letter-spacing:10px;color:#1F6B4A;font-weight:700;">${code}</div>
+     </div>
+     <p style="font-size:14px;line-height:1.6;margin:0;color:#6b6a60;">This code expires in 10 minutes. If you did not try to sign in, please change your password immediately.</p>`
+  );
+  const text = `Your Oakstone 1 Bank sign-in code is: ${code}\n\nThis code expires in 10 minutes. If you did not try to sign in, change your password.`;
+  await send(to, `${code} is your Oakstone 1 Bank sign-in code`, html, text);
+}
+
+export async function sendVerificationEmail(to: string, firstName: string, verifyUrl: string): Promise<void> {
+  const html = brandShell('Verify your email',
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 24px;">Please verify your email address to activate your Oakstone 1 Bank account.</p>
+     <div style="text-align:center;margin:24px 0;">
+       <a href="${verifyUrl}" style="background:#1F6B4A;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:16px;">Verify Email</a>
+     </div>
+     <p style="font-size:14px;color:#6b6a60;">This link expires in 24 hours.</p>`
+  );
+  const text = `Hi ${firstName},\n\nVerify your email: ${verifyUrl}\n\nThis link expires in 24 hours.`;
+  await send(to, 'Verify your Oakstone 1 Bank email', html, text);
+}
+
+export async function sendEmailVerification(to: string, firstName: string, verifyUrl: string): Promise<void> {
+  await sendVerificationEmail(to, firstName, verifyUrl);
+}
+
+export async function sendKycApprovedEmail(to: string, firstName: string): Promise<void> {
+  const html = brandShell('Your application has been approved',
     `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Dear ${firstName},</p>
-     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Thank you for applying to open an account with Oakstone 1 Bank. We have received your application and our team has begun reviewing your details.</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">We are pleased to inform you that your Oakstone 1 Bank application has been approved.</p>
      <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Most applications are reviewed within one business day. We will notify you as soon as a decision has been made. No further action is required from you at this time.</p>
      <p style="font-size:16px;line-height:1.6;margin:0 0 8px;">With appreciation,</p>
      <p style="font-size:16px;line-height:1.6;margin:0;color:#1F6B4A;font-weight:600;">The Oakstone 1 Bank Team</p>`
   );
-  const text = `Dear ${firstName},\n\nThank you for applying to open an account with Oakstone 1 Bank. We have received your application and our team has begun reviewing your details. Most applications are reviewed within one business day.\n\nThe Oakstone 1 Bank Team`;
+  const text = `Dear ${firstName},\n\nYour Oakstone 1 Bank application has been approved.\n\nThe Oakstone 1 Bank Team`;
+  await send(to, 'Your Oakstone 1 Bank application has been approved', html, text);
+}
+
+export async function sendApplicationApproved(to: string, firstName: string): Promise<void> {
+  await sendKycApprovedEmail(to, firstName);
+}
+
+export async function sendKycRejectedEmail(to: string, firstName: string, reason?: string): Promise<void> {
+  const reasonBlock = reason ? `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;"><strong>Reason:</strong> ${reason}</p>` : '';
+  const html = brandShell('An update on your application',
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Dear ${firstName},</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">After review, we are unable to approve your Oakstone 1 Bank application at this time.</p>
+     ${reasonBlock}
+     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">If you believe this decision was made in error or you would like to provide additional information, please contact our support team.</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 8px;">Respectfully,</p>
+     <p style="font-size:16px;line-height:1.6;margin:0;color:#1F6B4A;font-weight:600;">The Oakstone 1 Bank Team</p>`
+  );
+  const text = `Dear ${firstName},\n\nAfter review, we are unable to approve your Oakstone 1 Bank application at this time.${reason ? '\n\nReason: ' + reason : ''}\n\nThe Oakstone 1 Bank Team`;
+  await send(to, 'An update on your Oakstone 1 Bank application', html, text);
+}
+
+export async function sendApplicationRejected(to: string, firstName: string, reason?: string): Promise<void> {
+  await sendKycRejectedEmail(to, firstName, reason);
+}
+
+export async function sendApplicationConfirmation(to: string, firstName: string): Promise<void> {
+  const html = brandShell('Application received',
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Dear ${firstName},</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Thank you for applying to Oakstone 1 Bank. We have received your application and will review it shortly.</p>
+     <p style="font-size:16px;line-height:1.6;margin:0;color:#1F6B4A;font-weight:600;">The Oakstone 1 Bank Team</p>`
+  );
+  const text = `Dear ${firstName},\n\nThank you for applying to Oakstone 1 Bank. We have received your application.\n\nThe Oakstone 1 Bank Team`;
   await send(to, 'Your Oakstone 1 Bank application has been received', html, text);
 }
 
-export async function sendPasswordReset(to: string, resetUrl: string): Promise<void> {
-  const html = brandShell(
-    'Reset your password',
-    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">We received a request to reset the password for your Oakstone 1 Bank account.</p>
-     <p style="font-size:16px;line-height:1.6;margin:0 0 24px;">Click the button below to choose a new password. This link will expire in one hour.</p>
-     <p style="text-align:center;margin:0 0 24px;"><a href="${resetUrl}" style="display:inline-block;background:linear-gradient(135deg,#2E8B5E,#1F6B4A);color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;letter-spacing:.05em;">Reset Password</a></p>
-     <p style="font-size:14px;line-height:1.6;margin:0;color:#6b6a60;">If you didn't request this, you can safely ignore this email — your password will remain unchanged.</p>`
+export async function sendPasswordReset(to: string, firstNameOrUrl: string, resetUrl?: string): Promise<void> {
+  const actualUrl = resetUrl ?? firstNameOrUrl;
+  const firstName = resetUrl ? firstNameOrUrl : 'there';
+  const html = brandShell('Reset your password',
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 24px;">Click the button below to reset your password. This link expires in 1 hour.</p>
+     <div style="text-align:center;margin:24px 0;">
+       <a href="${actualUrl}" style="background:#1F6B4A;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:16px;">Reset Password</a>
+     </div>
+     <p style="font-size:14px;color:#6b6a60;">If you did not request a password reset, ignore this email.</p>`
   );
-  const text = `Reset your Oakstone 1 Bank password using this link (expires in 1 hour):\n${resetUrl}\n\nIf you didn't request this, ignore this email.`;
+  const text = `Hi ${firstName},\n\nReset your password: ${actualUrl}\n\nThis link expires in 1 hour.`;
   await send(to, 'Reset your Oakstone 1 Bank password', html, text);
 }

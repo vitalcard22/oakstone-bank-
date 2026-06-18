@@ -8,7 +8,7 @@ import { getDb } from '../config/db';
 import { getRedis, keys } from '../config/redis';
 import { AppError } from '../utils/AppError';
 import { auditLog } from '../utils/audit';
-import { sendApplicationConfirmation, sendPasswordReset } from '../services/email';
+import { sendApplicationConfirmation, sendPasswordReset, sendEmailVerification, sendApplicationApproved, sendApplicationRejected, sendLoginCode } from '../services/email';
 
 const ACCESS_TTL = '15m';
 const REFRESH_TTL = '7d';
@@ -71,10 +71,19 @@ await db.query(
 ]
 );
 
+// Email verification token (24h)
+const verifyToken = uuid();
+await db.query(
+  `UPDATE users SET email_verify_token=$1, email_verify_expires=NOW()+INTERVAL '24 hours' WHERE id=$2`,
+  [verifyToken, userId]
+);
+const verifyUrl = `${process.env.FRONTEND_URL ?? ''}/verify-email?token=${verifyToken}`;
+
 await auditLog({ actorId: userId, action: 'auth.register', entityType: 'user', entityId: userId });
-// Send branded confirmation email (non-blocking; failure won't break signup)
+// Send emails (non-blocking; failures won't break signup)
 sendApplicationConfirmation(email, firstName).catch((e) => console.error('[Email] confirmation failed:', e?.message));
-res.status(201).json({ message: 'Application submitted. Please sign in.' });
+sendEmailVerification(email, firstName, verifyUrl).catch((e) => console.error('[Email] verification failed:', e?.message));
+res.status(201).json({ message: 'Application submitted. Please check your email to verify your address, then sign in.' });
 } catch (e) {
 next(e);
 }
@@ -114,26 +123,68 @@ throw new AppError('Invalid credentials', 401);
 }
 
 await db.query(
-'UPDATE users SET failed_login_attempts=0, locked_until=NULL, last_login_at=NOW(), last_login_ip=$1 WHERE id=$2',
-[req.ip, user.id]
+'UPDATE users SET failed_login_attempts=0, locked_until=NULL WHERE id=$1',
+[user.id]
 );
 
-if (user.mfa_enabled) {
+// Always require an emailed 6-digit code (2FA for every login).
+const code = String(Math.floor(100000 + Math.random() * 900000));
+const codeHash = await bcrypt.hash(code, 8);
+// Store code (hashed) + attempt counter in Redis for 10 minutes, keyed to the user.
+await redis.setEx(`logincode:${user.id}`, 600, JSON.stringify({ hash: codeHash, attempts: 0 }));
+
 const challengeToken = jwt.sign(
-{ sub: user.id, type: 'mfa_challenge' },
+{ sub: user.id, role: user.role, type: 'login_code' },
 process.env.JWT_SECRET!,
-{ expiresIn: '5m' }
+{ expiresIn: '10m' }
 );
-res.json({ requiresMfa: true, challengeToken });
-return;
+
+sendLoginCode(email, code).catch((e) => console.error('[Email] login code failed:', e?.message));
+await auditLog({ actorId: user.id, action: 'auth.login.code_sent', ip: req.ip });
+res.json({ requiresCode: true, challengeToken });
+} catch (e) {
+next(e);
+}
 }
 
-const jti = uuid();
-const accessToken = signAccess(user.id, user.role, jti);
-const refreshToken = signRefresh(user.id, jti);
+// POST /auth/login/verify-code  — completes login after the emailed 6-digit code
+export async function completeLoginCode(req: Request, res: Response, next: NextFunction): Promise<void> {
+try {
+const db = getDb();
+const redis = getRedis();
+const { challengeToken, code } = req.body;
+if (!challengeToken || !code) throw new AppError('Missing code', 400);
 
+let payload: any;
+try { payload = jwt.verify(challengeToken, process.env.JWT_SECRET!); }
+catch { throw new AppError('Your code request expired. Please sign in again.', 400); }
+if (payload.type !== 'login_code') throw new AppError('Invalid request', 400);
+
+const raw = await redis.get(`logincode:${payload.sub}`);
+if (!raw) throw new AppError('Your code expired. Please sign in again.', 400);
+const stored = JSON.parse(raw);
+
+if (stored.attempts >= 5) {
+await redis.del(`logincode:${payload.sub}`);
+throw new AppError('Too many incorrect attempts. Please sign in again.', 429);
+}
+
+const ok = await bcrypt.compare(String(code), stored.hash);
+if (!ok) {
+stored.attempts += 1;
+await redis.setEx(`logincode:${payload.sub}`, 600, JSON.stringify(stored));
+throw new AppError('Incorrect code. Please try again.', 401);
+}
+
+// Code correct — clear it and issue real tokens.
+await redis.del(`logincode:${payload.sub}`);
+await db.query('UPDATE users SET last_login_at=NOW(), last_login_ip=$1 WHERE id=$2', [req.ip, payload.sub]);
+
+const jti = uuid();
+const accessToken = signAccess(payload.sub, payload.role, jti);
+const refreshToken = signRefresh(payload.sub, jti);
 const rtHash = await bcrypt.hash(refreshToken, 8);
-await redis.setEx(keys.session(user.id), REFRESH_TTL_SECS, JSON.stringify({ jti, hash: rtHash }));
+await redis.setEx(keys.session(payload.sub), REFRESH_TTL_SECS, JSON.stringify({ jti, hash: rtHash }));
 
 res.cookie('refreshToken', refreshToken, {
 httpOnly: true,
@@ -142,8 +193,8 @@ sameSite: 'strict',
 maxAge: REFRESH_TTL_SECS * 1000,
 });
 
-await auditLog({ actorId: user.id, action: 'auth.login', ip: req.ip });
-res.json({ accessToken, user: { id: user.id, role: user.role } });
+await auditLog({ actorId: payload.sub, action: 'auth.login', ip: req.ip });
+res.json({ accessToken, user: { id: payload.sub, role: payload.role } });
 } catch (e) {
 next(e);
 }
@@ -349,6 +400,30 @@ await getDb().query(
 );
 await getRedis().del(`reset:${token}`);
 res.json({ message: 'Password reset successful' });
+} catch (e) {
+next(e);
+}
+}
+
+
+// GET/POST /auth/verify-email?token=...
+export async function verifyEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
+try {
+const token = (req.query.token as string) || req.body?.token;
+if (!token) throw new AppError('Missing verification token', 400);
+const { rows } = await getDb().query(
+`SELECT id, email_verify_expires FROM users WHERE email_verify_token=$1`,
+[token]
+);
+if (!rows.length) throw new AppError('Invalid or expired verification link', 400);
+if (rows[0].email_verify_expires && new Date(rows[0].email_verify_expires) < new Date()) {
+throw new AppError('Verification link has expired', 400);
+}
+await getDb().query(
+`UPDATE users SET email_verified=TRUE, email_verify_token=NULL, email_verify_expires=NULL WHERE id=$1`,
+[rows[0].id]
+);
+res.json({ message: 'Email verified successfully' });
 } catch (e) {
 next(e);
 }

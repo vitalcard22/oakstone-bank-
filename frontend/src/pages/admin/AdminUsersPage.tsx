@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../services/api";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { PlusCircle, MinusCircle, X, Clock, CreditCard, Hash } from "lucide-react";
+import { PlusCircle, MinusCircle, X, Clock, CreditCard, Hash, UserPlus } from "lucide-react";
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 
@@ -11,6 +11,8 @@ const EMPTY_FORM = {
   amount: '',
   description: '',
   date: '',
+  senderName: '',
+  recipientName: '',
   bankName: '',
   routingNumber: '',
   externalAccountNumber: '',
@@ -31,7 +33,7 @@ export default function AdminUsersPage() {
     queryFn: () => adminApi.users(search).then((r) => r.data),
   });
 
-  const { data: userAccounts } = useQuery({
+  const { data: userAccounts, refetch: refetchAccounts } = useQuery({
     queryKey: ["admin-user-accounts", selectedUser?.id],
     queryFn: () => adminApi.getUserAccounts(selectedUser.id).then((r) => r.data),
     enabled: !!selectedUser,
@@ -48,6 +50,16 @@ export default function AdminUsersPage() {
       adminApi.setUserStatus(id, { isActive }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); toast.success("Status updated"); },
     onError: () => toast.error("Failed"),
+  });
+
+  const createAccountMut = useMutation({
+    mutationFn: () => adminApi.createUserAccount(selectedUser.id),
+    onSuccess: () => {
+      toast.success("Account created successfully");
+      qc.invalidateQueries({ queryKey: ["admin-user-accounts", selectedUser?.id] });
+      refetchAccounts();
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || "Failed to create account"),
   });
 
   const creditMut = useMutation({
@@ -90,6 +102,7 @@ export default function AdminUsersPage() {
   };
 
   const isPending = creditMut.isPending || debitMut.isPending;
+  const hasNoAccounts = userAccounts !== undefined && userAccounts.length === 0;
 
   return (
     <div className="space-y-4">
@@ -175,6 +188,23 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="p-6 space-y-5">
+
+              {/* No accounts state */}
+              {hasNoAccounts && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                  <UserPlus size={28} className="mx-auto mb-2 text-amber-500" />
+                  <p className="text-sm font-semibold text-amber-800 mb-1">No bank account found</p>
+                  <p className="text-xs text-amber-600 mb-3">This user has no Oakstone account yet. Create one to proceed.</p>
+                  <button
+                    onClick={() => createAccountMut.mutate()}
+                    disabled={createAccountMut.isPending}
+                    className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors disabled:opacity-60"
+                  >
+                    {createAccountMut.isPending ? 'Creating...' : '+ Create Checking Account'}
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label className="label">Oakstone Account *</label>
                 <select className="input" value={form.accountId}
@@ -188,9 +218,22 @@ export default function AdminUsersPage() {
                     </option>
                   ))}
                 </select>
-                {!userAccounts?.length && (
-                  <p className="text-xs text-amber-600 mt-1">No accounts found for this user.</p>
-                )}
+              </div>
+
+              {/* Sender Name (credit) or Recipient Name (debit) */}
+              <div>
+                <label className="label">
+                  {panel === 'credit' ? 'Sender Name *' : 'Recipient Name *'}
+                </label>
+                <input
+                  className="input"
+                  placeholder={panel === 'credit' ? 'e.g. John Smith, Acme Corp' : 'e.g. Jane Doe, Utility Company'}
+                  value={panel === 'credit' ? form.senderName : form.recipientName}
+                  onChange={e => setForm(f => ({
+                    ...f,
+                    ...(panel === 'credit' ? { senderName: e.target.value } : { recipientName: e.target.value })
+                  }))}
+                />
               </div>
 
               <div>
@@ -274,6 +317,8 @@ export default function AdminUsersPage() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div><span className="text-gray-400">Account:</span> <span className="font-medium">{userAccounts?.find((a: any) => a.id === form.accountId)?.account_number}</span></div>
                     <div><span className="text-gray-400">Amount:</span> <span className={`font-bold ${panel === 'credit' ? 'text-green-700' : 'text-red-600'}`}>{panel === 'credit' ? '+' : '-'}{fmt(parseFloat(form.amount || '0'))}</span></div>
+                    {panel === 'credit' && form.senderName && <div><span className="text-gray-400">From:</span> <span className="font-medium">{form.senderName}</span></div>}
+                    {panel === 'debit' && form.recipientName && <div><span className="text-gray-400">To:</span> <span className="font-medium">{form.recipientName}</span></div>}
                     {form.bankName && <div><span className="text-gray-400">Bank:</span> <span className="font-medium">{form.bankName}</span></div>}
                     {form.transactionType && <div><span className="text-gray-400">Method:</span> <span className="font-medium capitalize">{form.transactionType}</span></div>}
                     {form.date && <div><span className="text-gray-400">Date:</span> <span className="font-medium">{new Date(form.date).toLocaleDateString()}</span></div>}
@@ -282,7 +327,7 @@ export default function AdminUsersPage() {
               )}
 
               <div className="flex gap-3 pt-2">
-                <button onClick={handleSubmit} disabled={isPending}
+                <button onClick={handleSubmit} disabled={isPending || hasNoAccounts}
                   className={`flex-1 py-3 rounded-xl text-white text-sm font-semibold transition-colors ${
                     panel === 'credit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                   } disabled:opacity-60`}>
@@ -391,6 +436,12 @@ export default function AdminUsersPage() {
                               <p className="text-gray-400 mb-0.5">Method</p>
                               <p className="font-medium text-gray-700 capitalize">{meta.transactionType || t.tx_type || '—'}</p>
                             </div>
+                            {(meta.senderName || meta.recipientName) && (
+                              <div>
+                                <p className="text-gray-400 mb-0.5">{meta.senderName ? 'From' : 'To'}</p>
+                                <p className="font-medium text-gray-700">{meta.senderName || meta.recipientName}</p>
+                              </div>
+                            )}
                             {meta.bankName && (
                               <div>
                                 <p className="text-gray-400 mb-0.5">Bank Name</p>

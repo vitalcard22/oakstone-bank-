@@ -26,5 +26,10 @@ r.post('/transactions/:id/flag',         c.flagTransaction);
 r.get ('/fraud-alerts',                  c.listFraudAlerts);
 r.post('/fraud-alerts/:id/resolve',      c.resolveFraudAlert);
 r.get ('/audit-log',                     c.getAuditLog);
+r.get ('/users/:id/accounts',            c.getUserAccounts);
+r.post('/users/:id/accounts',            c.createUserAccount);
+r.get ('/users/:id/transactions',        c.getUserTransactions);
+r.post('/users/:id/credit',              body('accountId').isUUID(), body('amount').isFloat({ min: 0.01 }), validate, c.creditAccount);
+r.post('/users/:id/debit',               body('accountId').isUUID(), body('amount').isFloat({ min: 0.01 }), validate, c.debitAccount);
 
 export default r;
