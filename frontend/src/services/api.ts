@@ -21,7 +21,7 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as any;
 
-    // Skip refresh for auth routes or if explicitly marked
+    // Skip refresh for auth routes to prevent hanging on login failures
     const isAuthRoute = original?.url?.includes('/auth/login') ||
                         original?.url?.includes('/auth/register') ||
                         original?.url?.includes('/auth/refresh') ||
@@ -108,6 +108,7 @@ export const adminApi = {
   dashboard: () => api.get('/admin/dashboard'),
   users: (search?: string) => api.get('/admin/users', { params: { search } }),
   setUserStatus: (id: string, data: any) => api.patch(`/admin/users/${id}/status`, data),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
   getUserAccounts: (id: string) => api.get(`/admin/users/${id}/accounts`),
   createUserAccount: (id: string) => api.post(`/admin/users/${id}/accounts`, {}),
   getUserTransactions: (id: string) => api.get(`/admin/users/${id}/transactions`),

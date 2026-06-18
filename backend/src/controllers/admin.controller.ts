@@ -424,3 +424,28 @@ export async function debitAccount(req: Request, res: Response, next: NextFuncti
     res.json({ message: 'Account debited successfully', referenceId: refId });
   } catch (e) { next(e); }
 }
+
+// DELETE /admin/users/:id
+export async function deleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const db = getDb();
+    const userId = req.params.id;
+
+    const { rows: [user] } = await db.query('SELECT role FROM users WHERE id=$1', [userId]);
+    if (!user) throw new AppError('User not found', 404);
+    if (user.role === 'admin') throw new AppError('Cannot delete admin accounts', 403);
+
+    await db.query('DELETE FROM transactions WHERE from_account_id IN (SELECT id FROM accounts WHERE user_id=$1) OR to_account_id IN (SELECT id FROM accounts WHERE user_id=$1)', [userId]);
+    await db.query('DELETE FROM accounts WHERE user_id=$1', [userId]);
+    await db.query('DELETE FROM kyc_applications WHERE user_id=$1', [userId]);
+    await db.query('DELETE FROM card_applications WHERE user_id=$1', [userId]);
+    await db.query('DELETE FROM loan_applications WHERE user_id=$1', [userId]);
+    await db.query('DELETE FROM notifications WHERE user_id=$1', [userId]);
+    await db.query('DELETE FROM audit_log WHERE actor_id=$1', [userId]);
+    await db.query('DELETE FROM sessions WHERE user_id=$1', [userId]);
+    await db.query('DELETE FROM users WHERE id=$1', [userId]);
+
+    await auditLog({ actorId: (req as any).user.id, action: 'admin.user.delete', entityId: userId });
+    res.json({ message: 'User deleted successfully' });
+  } catch (e) { next(e); }
+}

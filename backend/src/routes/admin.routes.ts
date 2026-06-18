@@ -10,6 +10,7 @@ r.use(authenticate, requireAdmin);
 r.get ('/dashboard',                     c.getDashboard);
 r.get ('/users',                         c.listUsers);
 r.patch('/users/:id/status',             body('isActive').isBoolean(), validate, c.setUserStatus);
+r.delete('/users/:id',                   c.deleteUser);
 r.get ('/kyc/queue',                     c.kycQueue);
 r.post('/kyc/:userId/approve',           c.approveKyc);
 r.post('/kyc/:userId/reject',            body('reason').notEmpty(), validate, c.rejectKyc);
