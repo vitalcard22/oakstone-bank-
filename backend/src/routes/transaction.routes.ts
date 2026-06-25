@@ -7,9 +7,15 @@ import * as c from '../controllers/transaction.controller';
 const r = Router();
 r.use(authenticate);
 
+// Fee schedule & limits for the send-money forms
+r.get('/config', c.getTransferConfig);
+
+// Confirm a Zelle recipient's name before sending
+r.get('/zelle/lookup', c.zelleLookup);
+
 r.post('/transfer',
   body('fromAccountId').isUUID(),
-  body('toAccountId').isUUID(),
+  body('toAccountNumber').notEmpty(),
   body('amount').isFloat({ min: 0.01 }),
   validate, c.internalTransfer);
 
@@ -24,7 +30,7 @@ r.post('/ach',
   body('routingNumber').isLength({ min: 9, max: 9 }),
   body('externalAccountNumber').notEmpty(),
   body('amount').isFloat({ min: 0.01 }),
-  body('direction').isIn(['push','pull']),
+  body('direction').isIn(['debit','credit']),
   validate, c.achTransfer);
 
 r.post('/wire',

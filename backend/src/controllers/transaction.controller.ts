@@ -26,7 +26,39 @@ async function ensureCanSendMoney(userId: string): Promise<void> {
   }
 }
 
-// POST /transactions/transfer — internal between own accounts
+// Per-transaction maximums and fees by transfer type (single source of truth,
+// also exposed to the frontend via GET /transactions/config).
+const TX_LIMITS: Record<string, number> = { transfer: 1000000, zelle: 2500, ach: 25000, wire: 50000 };
+const TX_FEES:   Record<string, number> = { transfer: 0, zelle: 0, ach: 0, wire: 30 };
+const WIRE_MIN = 100;
+
+// GET /transactions/config — limits & fee schedule for the send-money forms
+export async function getTransferConfig(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.json({ limits: TX_LIMITS, fees: TX_FEES, wireMin: WIRE_MIN });
+  } catch (e) { next(e); }
+}
+
+// GET /transactions/zelle/lookup?identifier=... — confirm a Zelle recipient's name before sending
+export async function zelleLookup(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const identifier = String(req.query.identifier ?? '').trim();
+    if (!identifier) throw new AppError('identifier required', 400);
+    const { rows: [r] } = await getDb().query(
+      `SELECT u.first_name, u.last_name
+       FROM users u
+       JOIN accounts a ON a.user_id=u.id AND a.status='active' AND a.account_type='checking'
+       WHERE (u.email=$1 OR u.phone=$1) AND u.id!=$2
+       LIMIT 1`,
+      [identifier, userId]
+    );
+    if (!r) { res.json({ found: false }); return; }
+    res.json({ found: true, name: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() });
+  } catch (e) { next(e); }
+}
+
+// POST /transactions/transfer — internal by recipient account number
 export async function internalTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
   const db     = getDb();
   const client = await (db as any).connect();
@@ -36,9 +68,13 @@ export async function internalTransfer(req: Request, res: Response, next: NextFu
 
     await client.query('BEGIN');
 
-    const { fromAccountId, toAccountId, amount, description } = req.body;
+    const { fromAccountId, toAccountNumber, amount, description, recipientName } = req.body;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) throw new AppError('Invalid amount', 400);
+    if (amt > TX_LIMITS.transfer) throw new AppError(`Amount exceeds the internal transfer limit of $${TX_LIMITS.transfer.toLocaleString()}`, 400);
+    if (!toAccountNumber || String(toAccountNumber).trim().length < 4) {
+      throw new AppError('A valid recipient account number is required', 400);
+    }
 
     // Verify ownership of from account
     const { rows: [from] } = await client.query(
@@ -49,13 +85,19 @@ export async function internalTransfer(req: Request, res: Response, next: NextFu
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
     if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
 
-    // Verify to account exists and is active — recipient validation
+    // Resolve destination by ACCOUNT NUMBER — recipient validation
     const { rows: [to] } = await client.query(
-      'SELECT status FROM accounts WHERE id=$1 FOR UPDATE',
-      [toAccountId]
+      'SELECT id, status FROM accounts WHERE account_number=$1 FOR UPDATE',
+      [String(toAccountNumber).trim()]
     );
-    if (!to) throw new AppError('Destination account not found. Please check the account details and try again.', 404);
+    if (!to) throw new AppError('Destination account not found. Please check the account number and try again.', 404);
     if (to.status !== 'active') throw new AppError('Destination account is not active', 400);
+
+    const toAccountId = to.id;
+    if (toAccountId === fromAccountId) throw new AppError('Cannot transfer to the same account', 400);
+
+    // If the user supplied a recipient name and left the memo blank, record it.
+    const memo = description || (recipientName ? `Transfer to ${String(recipientName).trim()}` : null);
 
     // Fraud check
     const fraud = await runFraudCheck({ userId, fromAccountId, toAccountId, amount: amt, ip: req.ip ?? '' });
@@ -75,7 +117,7 @@ export async function internalTransfer(req: Request, res: Response, next: NextFu
     await client.query(
       `INSERT INTO transactions (id,reference_id,from_account_id,to_account_id,tx_type,status,amount,description,risk_score,flagged,ip_address)
        VALUES ($1,$2,$3,$4,'transfer','completed',$5,$6,$7,$8,$9)`,
-      [txId, refId, fromAccountId, toAccountId, amt, description ?? null, fraud.score, fraud.flagged, req.ip]
+      [txId, refId, fromAccountId, toAccountId, amt, memo, fraud.score, fraud.flagged, req.ip]
     );
 
     if (fraud.flagged) {
@@ -115,6 +157,7 @@ export async function zelleTransfer(req: Request, res: Response, next: NextFunct
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) throw new AppError('Invalid amount', 400);
     if (!identifier) throw new AppError('Recipient email or phone is required', 400);
+    if (amt > TX_LIMITS.zelle) throw new AppError(`Amount exceeds the Zelle limit of $${TX_LIMITS.zelle.toLocaleString()}`, 400);
 
     // Find recipient's active checking account — recipient validation
     const { rows: [recipient] } = await client.query(
@@ -182,11 +225,12 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
 
     await client.query('BEGIN');
 
-    const { fromAccountId, routingNumber, externalAccountNumber, amount, direction } = req.body;
+    const { fromAccountId, routingNumber, externalAccountNumber, accountType, accountHolderName, amount, direction } = req.body;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) throw new AppError('Invalid amount', 400);
     if (!routingNumber || !/^\d{9}$/.test(String(routingNumber))) throw new AppError('Valid 9-digit routing number is required', 400);
     if (!externalAccountNumber || String(externalAccountNumber).trim().length < 4) throw new AppError('Valid external account number is required', 400);
+    if (amt > TX_LIMITS.ach) throw new AppError(`Amount exceeds the ACH limit of $${TX_LIMITS.ach.toLocaleString()}`, 400);
 
     // Verify ownership and balance on the Oakstone side
     const { rows: [from] } = await client.query(
@@ -213,7 +257,7 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
       `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
        VALUES ($1,$2,$3,'ach','pending',$4,$5,$6)`,
       [txId, refId, fromAccountId, amt,
-        JSON.stringify({ routingNumber, externalAccountNumber, direction }), req.ip]
+        JSON.stringify({ routingNumber, externalAccountNumber, accountType, accountHolderName, direction }), req.ip]
     );
 
     await client.query('COMMIT');
@@ -247,22 +291,27 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
     const { fromAccountId, amount, recipient } = req.body;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) throw new AppError('Invalid amount', 400);
+    if (amt < WIRE_MIN) throw new AppError(`Minimum wire amount is $${WIRE_MIN}`, 400);
+    if (amt > TX_LIMITS.wire) throw new AppError(`Amount exceeds the wire limit of $${TX_LIMITS.wire.toLocaleString()}`, 400);
     if (!recipient || !recipient.name || !recipient.accountNumber || !recipient.bankName) {
       throw new AppError('Recipient name, bank name, and account number are required for a wire transfer', 400);
     }
 
-    // Verify ownership and reserve funds
+    const fee = TX_FEES.wire;
+
+    // Verify ownership and reserve funds (amount + fee)
     const { rows: [from] } = await client.query(
       'SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE',
       [fromAccountId, userId]
     );
     if (!from) throw new AppError('Source account not found', 404);
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
-    if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
+    if (parseFloat(from.available_balance) < amt + fee) throw new AppError('Insufficient funds to cover the wire amount plus the wire fee', 400);
 
+    // Reserve the wire amount + fee from available balance; charge the fee immediately.
     await client.query(
-      'UPDATE accounts SET available_balance=available_balance-$1 WHERE id=$2',
-      [amt, fromAccountId]
+      'UPDATE accounts SET available_balance=available_balance-$1, balance=balance-$2 WHERE id=$3',
+      [amt + fee, fee, fromAccountId]
     );
 
     const refId = generateRef();
@@ -271,8 +320,17 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
     await client.query(
       `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
        VALUES ($1,$2,$3,'wire','pending',$4,$5,$6)`,
-      [txId, refId, fromAccountId, amt, JSON.stringify({ recipient }), req.ip]
+      [txId, refId, fromAccountId, amt, JSON.stringify({ recipient, fee }), req.ip]
     );
+
+    // Record the wire fee as its own completed transaction so it shows in history.
+    if (fee > 0) {
+      await client.query(
+        `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,description,metadata,ip_address)
+         VALUES ($1,$2,$3,'fee','completed',$4,$5,$6,$7)`,
+        [uuid(), generateRef(), fromAccountId, fee, 'Wire transfer fee', JSON.stringify({ wireRef: refId }), req.ip]
+      );
+    }
 
     await client.query('COMMIT');
 
