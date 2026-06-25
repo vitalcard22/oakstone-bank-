@@ -64,7 +64,7 @@ export default function AdminCardsPage() {
           </div>
 
           <div className="flex gap-2 mt-3 flex-wrap">
-            {a.status === "pending" && approvingId !== a.id && (
+            {a.status === "under_review" && approvingId !== a.id && (
               <>
                 <button onClick={() => setApprovingId(a.id)} className="btn-primary text-xs py-1.5 px-4 bg-green-600 hover:bg-green-700">Approve</button>
                 <button onClick={() => rejectMut.mutate({id:a.id,reason:"Does not meet requirements"})} className="btn-danger text-xs py-1.5 px-4">Reject</button>

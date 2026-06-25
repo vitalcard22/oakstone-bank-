@@ -29,14 +29,14 @@ export async function applyForCard(req: Request, res: Response, next: NextFuncti
     if (!cfg) throw new AppError('Card type not found', 404);
 
     const { rows: [existing] } = await getDb().query(
-      `SELECT id FROM card_applications WHERE user_id=$1 AND status IN ('pending','approved') LIMIT 1`,
+      `SELECT id FROM card_applications WHERE user_id=$1 AND status IN ('under_review','approved') LIMIT 1`,
       [userId]
     );
     if (existing) throw new AppError('You already have a pending or approved card application', 409);
 
     const { rows: [app] } = await getDb().query(
       `INSERT INTO card_applications (user_id, card_type, application_fee, status)
-       VALUES ($1,$2,$3,'pending')
+       VALUES ($1,$2,$3,'under_review')
        RETURNING id, card_type, status, application_fee`,
       [userId, cardType, cfg.application_fee]
     );
