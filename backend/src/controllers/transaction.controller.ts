@@ -240,12 +240,18 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
     if (!from) throw new AppError('Source account not found', 404);
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
 
-    // For outbound ACH (pulling money out of Oakstone), require sufficient balance and reserve it now
+    // 'debit'  = money leaves Oakstone (outbound) -> debit this account
+    // 'credit' = money comes into Oakstone (inbound)  -> credit this account
     const isOutbound = direction !== 'credit';
     if (isOutbound) {
       if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
       await client.query(
-        'UPDATE accounts SET available_balance=available_balance-$1 WHERE id=$2',
+        'UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2',
+        [amt, fromAccountId]
+      );
+    } else {
+      await client.query(
+        'UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2',
         [amt, fromAccountId]
       );
     }
@@ -255,7 +261,7 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
 
     await client.query(
       `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
-       VALUES ($1,$2,$3,'ach','pending',$4,$5,$6)`,
+       VALUES ($1,$2,$3,'ach','completed',$4,$5,$6)`,
       [txId, refId, fromAccountId, amt,
         JSON.stringify({ routingNumber, externalAccountNumber, accountType, accountHolderName, direction }), req.ip]
     );
@@ -263,12 +269,15 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
     await client.query('COMMIT');
 
     await auditLog({ actorId: userId, action: 'transaction.ach', entityId: txId });
+    emitToUser(userId, 'transaction', { type: 'ach', amount: amt, refId, status: 'completed' });
 
-    res.status(202).json({
+    res.status(201).json({
       transactionId: txId,
       referenceId:   refId,
-      status:        'pending',
-      message:       'ACH transfer initiated. Funds available in 1-3 business days.',
+      status:        'completed',
+      message:       isOutbound
+        ? 'ACH transfer completed. Funds have been debited from your account.'
+        : 'ACH transfer completed. Funds have been credited to your account.',
     });
   } catch (e) {
     await client.query('ROLLBACK');
@@ -308,10 +317,10 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
     if (parseFloat(from.available_balance) < amt + fee) throw new AppError('Insufficient funds to cover the wire amount plus the wire fee', 400);
 
-    // Reserve the wire amount + fee from available balance; charge the fee immediately.
+    // Debit the full wire amount + fee from the account immediately.
     await client.query(
-      'UPDATE accounts SET available_balance=available_balance-$1, balance=balance-$2 WHERE id=$3',
-      [amt + fee, fee, fromAccountId]
+      'UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2',
+      [amt + fee, fromAccountId]
     );
 
     const refId = generateRef();
@@ -319,7 +328,7 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
 
     await client.query(
       `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
-       VALUES ($1,$2,$3,'wire','pending',$4,$5,$6)`,
+       VALUES ($1,$2,$3,'wire','completed',$4,$5,$6)`,
       [txId, refId, fromAccountId, amt, JSON.stringify({ recipient, fee }), req.ip]
     );
 
@@ -335,8 +344,9 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
     await client.query('COMMIT');
 
     await auditLog({ actorId: userId, action: 'transaction.wire', entityId: txId });
+    emitToUser(userId, 'transaction', { type: 'wire', amount: amt, refId, status: 'completed' });
 
-    res.status(202).json({ transactionId: txId, referenceId: refId, status: 'pending' });
+    res.status(201).json({ transactionId: txId, referenceId: refId, status: 'completed' });
   } catch (e) {
     await client.query('ROLLBACK');
     next(e);
@@ -350,9 +360,16 @@ export async function getTransaction(req: Request, res: Response, next: NextFunc
   try {
     const userId = (req as any).user.id;
     const { rows } = await getDb().query(
-      `SELECT t.* FROM transactions t
-       JOIN accounts a ON (a.id=t.from_account_id OR a.id=t.to_account_id)
-       WHERE t.id=$1 AND a.user_id=$2 LIMIT 1`,
+      `SELECT t.*,
+              fa.account_number AS from_account_number,
+              fa.account_type   AS from_account_type,
+              ta.account_number AS to_account_number,
+              ta.account_type   AS to_account_type
+       FROM transactions t
+       LEFT JOIN accounts fa ON fa.id = t.from_account_id
+       LEFT JOIN accounts ta ON ta.id = t.to_account_id
+       WHERE t.id=$1 AND (fa.user_id=$2 OR ta.user_id=$2)
+       LIMIT 1`,
       [req.params.id, userId]
     );
     if (!rows.length) throw new AppError('Transaction not found', 404);

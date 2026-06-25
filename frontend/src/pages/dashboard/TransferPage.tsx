@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { accountApi, txApi } from '../../services/api';
@@ -33,6 +34,7 @@ export default function TransferPage() {
   const [zelleNotFound, setZelleNotFound] = useState(false);
 
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: accounts } = useQuery({ queryKey: ['accounts'], queryFn: () => accountApi.list().then(r => r.data) });
   const { data: cfg } = useQuery({ queryKey: ['tx-config'], queryFn: () => txApi.config().then(r => r.data) });
   const active = accounts?.filter((a: any) => a.status === 'active') ?? [];
@@ -47,20 +49,18 @@ export default function TransferPage() {
   const mut = useMutation({
     mutationFn: (payload: any) => (txApi as any)[tab](payload),
     onSuccess: (res: any) => {
-      const status = res?.data?.status;
-      if (status === 'pending') {
-        toast.success(tab === 'ach'
-          ? 'ACH transfer initiated. Funds will settle in 1-3 business days.'
-          : 'Wire transfer submitted and is pending review.');
-      } else {
-        toast.success('Transfer completed successfully');
-      }
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      const txId = res?.data?.transactionId;
       setStep('form');
       setReview(null);
       setZelleName(null);
       setZelleNotFound(false);
       reset();
-      qc.invalidateQueries({ queryKey: ['accounts'] });
+      if (txId) {
+        navigate(`/transfer/receipt/${txId}`);
+      } else {
+        toast.success('Transfer completed successfully');
+      }
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? e?.response?.data?.error ?? 'Transfer failed'),
   });
