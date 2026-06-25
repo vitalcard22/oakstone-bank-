@@ -455,7 +455,7 @@ export async function freezeCardAdmin(req: Request, res: Response, next: NextFun
   try {
     const db = getDb();
     const { rowCount } = await db.query(
-      `UPDATE credit_cards SET status='frozen', frozen_at=NOW()
+      `UPDATE credit_cards SET status='frozen', frozen_at=NOW(), frozen_by='admin'
        WHERE application_id=$1 AND status='active'`,
       [req.params.id]
     );
@@ -470,7 +470,7 @@ export async function unfreezeCardAdmin(req: Request, res: Response, next: NextF
   try {
     const db = getDb();
     const { rowCount } = await db.query(
-      `UPDATE credit_cards SET status='active', frozen_at=NULL
+      `UPDATE credit_cards SET status='active', frozen_at=NULL, frozen_by=NULL
        WHERE application_id=$1 AND status='frozen'`,
       [req.params.id]
     );

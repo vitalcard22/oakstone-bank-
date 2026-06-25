@@ -72,7 +72,7 @@ export async function listCards(req: Request, res: Response, next: NextFunction)
     const userId  = (req as any).user.id;
     const { rows } = await getDb().query(
       `SELECT id, card_type, card_last4, expiry_month, expiry_year,
-              status, credit_limit, balance, apr, annual_fee, issued_at
+              status, credit_limit, balance, apr, annual_fee, issued_at, frozen_by
        FROM credit_cards WHERE user_id=$1 ORDER BY issued_at DESC`,
       [userId]
     );
@@ -85,7 +85,7 @@ export async function freezeCard(req: Request, res: Response, next: NextFunction
   try {
     const userId = (req as any).user.id;
     const { rowCount } = await getDb().query(
-      `UPDATE credit_cards SET status='frozen', frozen_at=NOW()
+      `UPDATE credit_cards SET status='frozen', frozen_at=NOW(), frozen_by='user'
        WHERE id=$1 AND user_id=$2 AND status='active'`,
       [req.params.id, userId]
     );
@@ -95,16 +95,32 @@ export async function freezeCard(req: Request, res: Response, next: NextFunction
   } catch (e) { next(e); }
 }
 
-// POST /cards/:id/unfreeze — user unfreezes own card
+// POST /cards/:id/unfreeze — user unfreezes own card.
+// A card frozen by Oakstone (admin) CANNOT be unfrozen by the user.
 export async function unfreezeCard(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = (req as any).user.id;
-    const { rowCount } = await getDb().query(
-      `UPDATE credit_cards SET status='active', frozen_at=NULL
-       WHERE id=$1 AND user_id=$2 AND status='frozen'`,
+    const db = getDb();
+
+    // Look up the card first so we can tell who froze it.
+    const { rows } = await db.query(
+      `SELECT status, frozen_by FROM credit_cards WHERE id=$1 AND user_id=$2`,
       [req.params.id, userId]
     );
-    if (!rowCount) throw new AppError('Card not found or not frozen', 404);
+    if (!rows.length) throw new AppError('Card not found', 404);
+
+    const card = rows[0];
+    if (card.status !== 'frozen') throw new AppError('Card is not frozen', 400);
+
+    if (card.frozen_by === 'admin') {
+      throw new AppError('This card was frozen by Oakstone. Please contact support.', 403);
+    }
+
+    await db.query(
+      `UPDATE credit_cards SET status='active', frozen_at=NULL, frozen_by=NULL
+       WHERE id=$1 AND user_id=$2`,
+      [req.params.id, userId]
+    );
     await auditLog({ actorId: userId, action: 'card.unfreeze', entityId: req.params.id });
     res.json({ message: 'Card unfrozen' });
   } catch (e) { next(e); }

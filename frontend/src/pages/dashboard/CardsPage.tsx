@@ -43,10 +43,22 @@ export default function CardsPage() {
               <p className="text-xs text-gray-400">Limit</p>
               <p className="font-mono">{fmt(parseFloat(c.credit_limit))}</p>
             </div>
-            <button onClick={()=>c.status==="active"?freezeMut.mutate(c.id):unfreezeMut.mutate(c.id)}
-              className="text-xs border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-50">
-              {c.status==="active" ? "Freeze" : "Unfreeze"}
-            </button>
+            {c.status === "active" ? (
+              <button onClick={()=>freezeMut.mutate(c.id)}
+                className="text-xs border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-50">
+                Freeze
+              </button>
+            ) : c.frozen_by === "admin" ? (
+              <div className="text-right max-w-[150px]">
+                <p className="text-xs font-medium text-red-600">Frozen by Oakstone</p>
+                <p className="text-[11px] text-gray-400 leading-tight">Contact support to unlock</p>
+              </div>
+            ) : (
+              <button onClick={()=>unfreezeMut.mutate(c.id)}
+                className="text-xs border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-50">
+                Unfreeze
+              </button>
+            )}
           </div>
         </div>
       ))}
