@@ -7,12 +7,11 @@ import * as c from '../controllers/card.controller';
 const r = Router();
 r.use(authenticate);
 
-r.get ('/fee-config',    c.getFeeConfig);
-r.get ('/applications',  c.listApplications);
-r.post('/apply',         body('cardType').isIn(['classic','gold','platinum']), validate, c.applyForCard);
-r.post('/:appId/pay-fee', body('paymentAccountId').isUUID(), validate, c.payApplicationFee);
-r.get ('/',              c.listCards);
-r.post('/:id/freeze',    c.freezeCard);
-r.post('/:id/unfreeze',  c.unfreezeCard);
+r.get ('/fee-config',     c.getFeeConfig);
+r.get ('/applications',   c.listApplications);
+r.post('/apply',          body('cardType').isIn(['classic','gold','platinum']), validate, c.applyForCard);
+r.get ('/',                c.listCards);
+r.post('/:id/freeze',     c.freezeCard);
+r.post('/:id/unfreeze',   c.unfreezeCard);
 
 export default r;

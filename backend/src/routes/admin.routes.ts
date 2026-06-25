@@ -19,6 +19,9 @@ r.patch('/card-fees/:cardType',          body('applicationFee').isFloat({ min: 0
 r.get ('/card-applications',             c.listCardApplications);
 r.post('/card-applications/:id/approve', body('creditLimit').isFloat({ min: 100 }), body('apr').isFloat({ min: 0 }), validate, c.approveCardApp);
 r.post('/card-applications/:id/reject',  body('reason').notEmpty(), validate, c.rejectCardApp);
+r.post('/card-applications/:id/freeze',  c.freezeCardAdmin);
+r.post('/card-applications/:id/unfreeze', c.unfreezeCardAdmin);
+r.delete('/card-applications/:id',       c.deleteCardApplication);
 r.get ('/loan-applications',             c.listLoanApplications);
 r.post('/loan-applications/:id/approve', body('interestRate').isFloat({ min: 0 }), body('termMonths').isInt({ min: 1 }), validate, c.approveLoan);
 r.post('/loan-applications/:id/reject',  body('reason').notEmpty(), validate, c.rejectLoan);

@@ -171,7 +171,7 @@ export async function approveCardApp(req: Request, res: Response, next: NextFunc
     await db.query(
       `INSERT INTO credit_cards (id, application_id, user_id, card_type, card_last4, expiry_month, expiry_year, credit_limit, apr)
        VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)`,
-      [uuid(), req.params.id, app.user_id, app.card_type, last4, expM, expY, creditLimit, apr]
+      [req.params.id, app.user_id, app.card_type, last4, expM, expY, creditLimit, apr]
     );
 
     await auditLog({ actorId: (req as any).user.id, action: 'admin.card.approve', entityId: req.params.id });
@@ -377,7 +377,7 @@ export async function creditAccount(req: Request, res: Response, next: NextFunct
 
     await getDb().query(
       `INSERT INTO transactions (id,reference_id,to_account_id,tx_type,status,amount,description,metadata,processed_at,created_at,updated_at)
-       VALUES (uuid_generate_v4(),$1,$2,'credit','completed',$3,$4,$5,$6,$6,$6)`,
+       VALUES (uuid_generate_v4(),$1,$2,'deposit','completed',$3,$4,$5,$6,$6,$6)`,
       [refId, accountId, parseFloat(amount), description || senderName && `Credit from ${senderName}` || 'Admin credit', metadata, txDate]
     );
 
@@ -416,7 +416,7 @@ export async function debitAccount(req: Request, res: Response, next: NextFuncti
 
     await getDb().query(
       `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,description,metadata,processed_at,created_at,updated_at)
-       VALUES (uuid_generate_v4(),$1,$2,'debit','completed',$3,$4,$5,$6,$6,$6)`,
+       VALUES (uuid_generate_v4(),$1,$2,'withdrawal','completed',$3,$4,$5,$6,$6,$6)`,
       [refId, accountId, parseFloat(amount), description || recipientName && `Debit to ${recipientName}` || 'Admin debit', metadata, txDate]
     );
 
@@ -447,5 +447,51 @@ export async function deleteUser(req: Request, res: Response, next: NextFunction
 
     await auditLog({ actorId: (req as any).user.id, action: 'admin.user.delete', entityId: userId });
     res.json({ message: 'User deleted successfully' });
+  } catch (e) { next(e); }
+}
+
+// POST /admin/card-applications/:id/freeze — admin freezes the issued card tied to this application
+export async function freezeCardAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const db = getDb();
+    const { rowCount } = await db.query(
+      `UPDATE credit_cards SET status='frozen', frozen_at=NOW()
+       WHERE application_id=$1 AND status='active'`,
+      [req.params.id]
+    );
+    if (!rowCount) throw new AppError('Card not found or already frozen', 404);
+    await auditLog({ actorId: (req as any).user.id, action: 'admin.card.freeze', entityId: req.params.id });
+    res.json({ message: 'Card frozen by admin' });
+  } catch (e) { next(e); }
+}
+
+// POST /admin/card-applications/:id/unfreeze — admin unfreezes the issued card tied to this application
+export async function unfreezeCardAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const db = getDb();
+    const { rowCount } = await db.query(
+      `UPDATE credit_cards SET status='active', frozen_at=NULL
+       WHERE application_id=$1 AND status='frozen'`,
+      [req.params.id]
+    );
+    if (!rowCount) throw new AppError('Card not found or not frozen', 404);
+    await auditLog({ actorId: (req as any).user.id, action: 'admin.card.unfreeze', entityId: req.params.id });
+    res.json({ message: 'Card unfrozen by admin' });
+  } catch (e) { next(e); }
+}
+
+// DELETE /admin/card-applications/:id — delete a card application and any issued card,
+// regardless of status (works even after approval).
+export async function deleteCardApplication(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const db = getDb();
+    const { rows: [app] } = await db.query('SELECT id FROM card_applications WHERE id=$1', [req.params.id]);
+    if (!app) throw new AppError('Application not found', 404);
+
+    await db.query('DELETE FROM credit_cards WHERE application_id=$1', [req.params.id]);
+    await db.query('DELETE FROM card_applications WHERE id=$1', [req.params.id]);
+
+    await auditLog({ actorId: (req as any).user.id, action: 'admin.card.delete', entityId: req.params.id });
+    res.json({ message: 'Card application and issued card deleted' });
   } catch (e) { next(e); }
 }
