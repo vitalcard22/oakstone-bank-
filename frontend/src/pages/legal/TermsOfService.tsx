@@ -1,4 +1,4 @@
-﻿// Oakstones 1 Bank â€” Terms of Service
+// Oakstones 1 Bank — Terms of Service
 // IMPORTANT: This is a generic template, NOT legal advice. Have a lawyer review
 // before publishing on a real financial institution's site.
 // Wire to its route (e.g. <Route path="/terms" element={<TermsOfService />} />).
@@ -24,7 +24,7 @@ const TermsOfService: React.FC = () => {
           <p>We may update these terms from time to time. Continued use of our services constitutes acceptance of any revised terms.</p>
         </div>
         <p style={{ marginTop: 40, paddingTop: 20, borderTop: "1px solid #E9E3D4", fontSize: 13, color: "#5C5A4F" }}>
-          Â© 2000â€“2026 Oakstones 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
+          © 2000–2026 Oakstones 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
         </p>
       </div>
     </div>

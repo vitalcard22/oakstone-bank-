@@ -1,4 +1,4 @@
-﻿// Oakstones 1 Bank â€” Cookie Policy
+// Oakstones 1 Bank — Cookie Policy
 // IMPORTANT: This is a generic template, NOT legal advice. Have a lawyer review
 // before publishing on a real financial institution's site.
 // Wire to its route (e.g. <Route path="/cookies" element={<CookiePolicy />} />).
@@ -22,7 +22,7 @@ const CookiePolicy: React.FC = () => {
           <p>You can control cookies through your browser settings. Note that disabling essential cookies may prevent you from logging in or using certain features.</p>
         </div>
         <p style={{ marginTop: 40, paddingTop: 20, borderTop: "1px solid #E9E3D4", fontSize: 13, color: "#5C5A4F" }}>
-          Â© 2000â€“2026 Oakstones 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
+          © 2000–2026 Oakstones 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
         </p>
       </div>
     </div>

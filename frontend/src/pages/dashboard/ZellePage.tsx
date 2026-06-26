@@ -1,4 +1,4 @@
-﻿import { useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -34,7 +34,7 @@ export default function ZellePage() {
           <select {...register("fromAccountId")} className="input">
             <option value="">Select account</option>
             {accounts?.filter((a: any)=>a.status==="active").map((a: any)=>(
-              <option key={a.id} value={a.id}>{a.account_type} ****{a.account_number?.slice(-4)} â€” ${parseFloat(a.balance).toFixed(2)}</option>
+              <option key={a.id} value={a.id}>{a.account_type} ****{a.account_number?.slice(-4)} — ${parseFloat(a.balance).toFixed(2)}</option>
             ))}
           </select>
         </div>

@@ -1,4 +1,4 @@
-﻿// Oakstones 1 Bank â€” Account Opening Application (4-stage, KYC-aware)
+// Oakstones 1 Bank — Account Opening Application (4-stage, KYC-aware)
 // Collects US bank application fields with validation. Data minimization:
 // only the last 4 digits of the SSN/ID are ever stored.
 
@@ -13,7 +13,7 @@ import toast from "react-hot-toast";
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"];
 
 const schema = z.object({
-  // Stage 1 â€” Identity
+  // Stage 1 — Identity
   firstName: z.string().min(1, "Required"),
   middleName: z.string().optional(),
   lastName: z.string().min(1, "Required"),
@@ -24,7 +24,7 @@ const schema = z.object({
   }, "You must be at least 18 years old"),
   ssn: z.string().regex(/^\d{3}-?\d{2}-?\d{4}$/, "Enter a valid 9-digit SSN (e.g. 123-45-6789)"),
   citizenship: z.string().min(1, "Required"),
-  // Stage 2 â€” Contact & address
+  // Stage 2 — Contact & address
   email: z.string().email("Invalid email"),
   phone: z.string().regex(/^[\d\s()+-]{10,}$/, "Enter a valid phone number"),
   street: z.string().min(1, "Required"),
@@ -32,11 +32,11 @@ const schema = z.object({
   city: z.string().min(1, "Required"),
   state: z.string().min(1, "Required"),
   zip: z.string().regex(/^\d{5}(-\d{4})?$/, "Enter a valid ZIP (e.g. 90210)"),
-  // Stage 3 â€” Identity verification
+  // Stage 3 — Identity verification
   idType: z.string().min(1, "Required"),
   idNumber: z.string().min(3, "Required"),
   idState: z.string().optional(),
-  // Stage 4 â€” Account & compliance
+  // Stage 4 — Account & compliance
   accountType: z.string().min(1, "Required"),
   employment: z.string().min(1, "Required"),
   sourceOfFunds: z.string().min(1, "Required"),
@@ -80,7 +80,7 @@ export default function RegisterPage() {
   async function onSubmit(data: Form) {
     setLoading(true);
     try {
-      // Full application â€” backend stores KYC fields (only last-4 of SSN/ID kept).
+      // Full application — backend stores KYC fields (only last-4 of SSN/ID kept).
       await authApi.register({
         firstName: data.firstName,
         middleName: data.middleName,
@@ -173,12 +173,12 @@ export default function RegisterPage() {
         </div>
 
         <div className="ob-apply-card">
-          <div className="ob-secure">ðŸ”’ Your information is encrypted and protected. We verify your identity in accordance with federal law.</div>
+          <div className="ob-secure">🔒 Your information is encrypted and protected. We verify your identity in accordance with federal law.</div>
 
           <div className="ob-steps">
             {STAGES.map((s) => (
               <div key={s.n} className={"ob-stepitem" + (stage === s.n ? " active" : stage > s.n ? " done" : "")}>
-                <span className="dot">{stage > s.n ? "âœ“" : s.n}</span>
+                <span className="dot">{stage > s.n ? "✓" : s.n}</span>
                 <span className="label">{s.label}</span>
               </div>
             ))}
@@ -198,7 +198,7 @@ export default function RegisterPage() {
                   <div className="ob-field"><label className="ob-l">Date of birth</label><input className="ob-i" type="date" {...register("dob")} />{err("dob")}</div>
                   <div className="ob-field"><label className="ob-l">Citizenship status</label>
                     <select className="ob-s" {...register("citizenship")} defaultValue="">
-                      <option value="" disabled>Selectâ€¦</option>
+                      <option value="" disabled>Select…</option>
                       <option>U.S. Citizen</option>
                       <option>U.S. Permanent Resident</option>
                       <option>Non-Resident</option>
@@ -217,7 +217,7 @@ export default function RegisterPage() {
             {stage === 2 && (
               <>
                 <h2>Contact & residential address</h2>
-                <p className="sub">We use this to verify your identity. A physical U.S. address is required â€” PO boxes are not accepted.</p>
+                <p className="sub">We use this to verify your identity. A physical U.S. address is required — PO boxes are not accepted.</p>
                 <div className="ob-row">
                   <div className="ob-field"><label className="ob-l">Email address</label><input className="ob-i" type="email" {...register("email")} placeholder="you@example.com" />{err("email")}</div>
                   <div className="ob-field"><label className="ob-l">Mobile phone</label><input className="ob-i" type="tel" {...register("phone")} placeholder="(555) 000-0000" />{err("phone")}</div>
@@ -228,7 +228,7 @@ export default function RegisterPage() {
                   <div className="ob-field"><label className="ob-l">City</label><input className="ob-i" {...register("city")} placeholder="New York" />{err("city")}</div>
                   <div className="ob-field"><label className="ob-l">State</label>
                     <select className="ob-s" {...register("state")} defaultValue="">
-                      <option value="" disabled>â€”</option>
+                      <option value="" disabled>—</option>
                       {US_STATES.map((s) => <option key={s}>{s}</option>)}
                     </select>{err("state")}
                   </div>
@@ -244,7 +244,7 @@ export default function RegisterPage() {
                 <div className="ob-field">
                   <label className="ob-l">ID type</label>
                   <select className="ob-s" {...register("idType")} defaultValue="">
-                    <option value="" disabled>Selectâ€¦</option>
+                    <option value="" disabled>Select…</option>
                     <option>U.S. Driver's License</option>
                     <option>State ID Card</option>
                     <option>U.S. Passport</option>
@@ -255,7 +255,7 @@ export default function RegisterPage() {
                   <div className="ob-field"><label className="ob-l">ID number</label><input className="ob-i" {...register("idNumber")} placeholder="D1234567" autoComplete="off" />{err("idNumber")}</div>
                   <div className="ob-field"><label className="ob-l">Issuing state (if applicable)</label>
                     <select className="ob-s" {...register("idState")} defaultValue="">
-                      <option value="">â€”</option>
+                      <option value="">—</option>
                       {US_STATES.map((s) => <option key={s}>{s}</option>)}
                     </select>
                   </div>
@@ -274,7 +274,7 @@ export default function RegisterPage() {
                 <div className="ob-row">
                   <div className="ob-field"><label className="ob-l">Account type</label>
                     <select className="ob-s" {...register("accountType")} defaultValue="">
-                      <option value="" disabled>Selectâ€¦</option>
+                      <option value="" disabled>Select…</option>
                       <option>Reserve Checking</option>
                       <option>High-Yield Savings</option>
                       <option>Checking & Savings</option>
@@ -282,7 +282,7 @@ export default function RegisterPage() {
                   </div>
                   <div className="ob-field"><label className="ob-l">Employment status</label>
                     <select className="ob-s" {...register("employment")} defaultValue="">
-                      <option value="" disabled>Selectâ€¦</option>
+                      <option value="" disabled>Select…</option>
                       <option>Employed</option>
                       <option>Self-employed</option>
                       <option>Retired</option>
@@ -293,7 +293,7 @@ export default function RegisterPage() {
                 </div>
                 <div className="ob-field full"><label className="ob-l">Primary source of funds</label>
                   <select className="ob-s" {...register("sourceOfFunds")} defaultValue="">
-                    <option value="" disabled>Selectâ€¦</option>
+                    <option value="" disabled>Select…</option>
                     <option>Salary / wages</option>
                     <option>Business income</option>
                     <option>Investments</option>
@@ -305,7 +305,7 @@ export default function RegisterPage() {
                 </div>
                 <div className="ob-row">
                   <div className="ob-field"><label className="ob-l">Create password</label><input className="ob-i" type="password" {...register("password")} placeholder="Min 8 chars, 1 uppercase, 1 number" />{err("password")}</div>
-                  <div className="ob-field"><label className="ob-l">Confirm password</label><input className="ob-i" type="password" {...register("confirm")} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />{err("confirm")}</div>
+                  <div className="ob-field"><label className="ob-l">Confirm password</label><input className="ob-i" type="password" {...register("confirm")} placeholder="••••••••" />{err("confirm")}</div>
                 </div>
                 <div className="ob-field full ob-check">
                   <input type="checkbox" id="agree" {...register("agree")} />
@@ -321,12 +321,12 @@ export default function RegisterPage() {
                 : <Link to="/login" className="ob-btn ob-btn-ghost" style={{ textDecoration: "none", display: "inline-block" }}>Sign in instead</Link>}
               {stage < 4
                 ? <button type="button" className="ob-btn ob-btn-primary" onClick={next}>Continue</button>
-                : <button type="submit" className="ob-btn ob-btn-primary" disabled={loading}>{loading ? "Submittingâ€¦" : "Submit application"}</button>}
+                : <button type="submit" className="ob-btn ob-btn-primary" disabled={loading}>{loading ? "Submitting…" : "Submit application"}</button>}
             </div>
           </form>
         </div>
 
-        <p className="ob-foot">Already have an account? <Link to="/login">Sign in</Link> Â· <Link to="/">Back to home</Link></p>
+        <p className="ob-foot">Already have an account? <Link to="/login">Sign in</Link> · <Link to="/">Back to home</Link></p>
       </div>
     </div>
   );

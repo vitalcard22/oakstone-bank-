@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
 
@@ -38,9 +38,9 @@ export default function VerifyEmailPage() {
           <div className="nm">Oakstones 1 Bank</div>
         </div>
         <div className="ob-verify-body">
-          {status === "loading" && (<><div className="ob-icon">â³</div><h1>Verifyingâ€¦</h1><p>One moment while we confirm your email address.</p></>)}
-          {status === "ok" && (<><div className="ob-icon">âœ…</div><h1>Email verified</h1><p>{message} You may now sign in to your account.</p><Link to="/login" className="ob-verify-btn">Sign In</Link></>)}
-          {status === "error" && (<><div className="ob-icon">âš ï¸</div><h1>Verification failed</h1><p>{message}</p><Link to="/login" className="ob-verify-btn">Go to Sign In</Link></>)}
+          {status === "loading" && (<><div className="ob-icon">⏳</div><h1>Verifying…</h1><p>One moment while we confirm your email address.</p></>)}
+          {status === "ok" && (<><div className="ob-icon">✅</div><h1>Email verified</h1><p>{message} You may now sign in to your account.</p><Link to="/login" className="ob-verify-btn">Sign In</Link></>)}
+          {status === "error" && (<><div className="ob-icon">⚠️</div><h1>Verification failed</h1><p>{message}</p><Link to="/login" className="ob-verify-btn">Go to Sign In</Link></>)}
         </div>
       </div>
     </div>

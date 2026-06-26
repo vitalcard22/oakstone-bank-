@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { v4 as uuid } from 'uuid';
 import { getDb } from '../config/db';
 import { AppError } from '../utils/AppError';
@@ -32,14 +32,14 @@ const TX_LIMITS: Record<string, number> = { transfer: 1000000, zelle: 2500, ach:
 const TX_FEES:   Record<string, number> = { transfer: 0, zelle: 0, ach: 0, wire: 30 };
 const WIRE_MIN = 100;
 
-// GET /transactions/config â€” limits & fee schedule for the send-money forms
+// GET /transactions/config — limits & fee schedule for the send-money forms
 export async function getTransferConfig(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     res.json({ limits: TX_LIMITS, fees: TX_FEES, wireMin: WIRE_MIN });
   } catch (e) { next(e); }
 }
 
-// GET /transactions/zelle/lookup?identifier=... â€” confirm a Zelle recipient's name before sending
+// GET /transactions/zelle/lookup?identifier=... — confirm a Zelle recipient's name before sending
 export async function zelleLookup(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = (req as any).user.id;
@@ -58,7 +58,7 @@ export async function zelleLookup(req: Request, res: Response, next: NextFunctio
   } catch (e) { next(e); }
 }
 
-// POST /transactions/transfer â€” internal by recipient account number
+// POST /transactions/transfer — internal by recipient account number
 export async function internalTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
   const db     = getDb();
   const client = await (db as any).connect();
@@ -85,7 +85,7 @@ export async function internalTransfer(req: Request, res: Response, next: NextFu
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
     if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
 
-    // Resolve destination by ACCOUNT NUMBER â€” recipient validation
+    // Resolve destination by ACCOUNT NUMBER — recipient validation
     const { rows: [to] } = await client.query(
       'SELECT id, status FROM accounts WHERE account_number=$1 FOR UPDATE',
       [String(toAccountNumber).trim()]
@@ -143,7 +143,7 @@ export async function internalTransfer(req: Request, res: Response, next: NextFu
   }
 }
 
-// POST /transactions/zelle â€” instant P2P by email or phone
+// POST /transactions/zelle — instant P2P by email or phone
 export async function zelleTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
   const db     = getDb();
   const client = await (db as any).connect();
@@ -159,7 +159,7 @@ export async function zelleTransfer(req: Request, res: Response, next: NextFunct
     if (!identifier) throw new AppError('Recipient email or phone is required', 400);
     if (amt > TX_LIMITS.zelle) throw new AppError(`Amount exceeds the Zelle limit of $${TX_LIMITS.zelle.toLocaleString()}`, 400);
 
-    // Find recipient's active checking account â€” recipient validation
+    // Find recipient's active checking account — recipient validation
     const { rows: [recipient] } = await client.query(
       `SELECT u.id AS recipient_id, a.id AS account_id
        FROM users u
@@ -215,7 +215,7 @@ export async function zelleTransfer(req: Request, res: Response, next: NextFunct
   }
 }
 
-// POST /transactions/ach â€” async ACH transfer (1-3 business days)
+// POST /transactions/ach — async ACH transfer (1-3 business days)
 export async function achTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
   const db     = getDb();
   const client = await (db as any).connect();
@@ -287,7 +287,7 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
   }
 }
 
-// POST /transactions/wire â€” wire transfer
+// POST /transactions/wire — wire transfer
 export async function wireTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
   const db     = getDb();
   const client = await (db as any).connect();

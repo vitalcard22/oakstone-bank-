@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { authApi } from "../../services/api";
 import { useAuthStore, normalizeUser } from "../../stores/auth.store";
@@ -56,7 +56,7 @@ export default function LoginCodePage() {
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             onKeyDown={(e) => e.key === "Enter" && submit()}
             inputMode="numeric"
-            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢"
+            placeholder="••••••"
             className="input text-center text-2xl tracking-[0.5em] font-mono"
             maxLength={6}
           />

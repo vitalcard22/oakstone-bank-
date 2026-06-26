@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { cardApi } from "../../services/api";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -59,7 +59,7 @@ export default function CardApplyPage() {
                     </div>
                   )}
                   <ul className="space-y-1">
-                    {meta.perks.map((p)=><li key={p} className="text-xs text-gray-600 flex gap-1.5"><span className="text-green-500">âœ“</span>{p}</li>)}
+                    {meta.perks.map((p)=><li key={p} className="text-xs text-gray-600 flex gap-1.5"><span className="text-green-500">✓</span>{p}</li>)}
                   </ul>
                 </div>
               </button>
@@ -73,7 +73,7 @@ export default function CardApplyPage() {
           <h3 className="font-semibold text-gray-900 mb-2">Confirm application</h3>
           {fees[selected]?.fee_enabled && (
             <p className="text-sm text-gray-500 mb-4">
-              This card has an application fee of <span className="font-mono text-navy-600">${parseFloat(fees[selected].application_fee).toFixed(2)}</span>, set by administration. No payment is required now â€” your application will be reviewed first.
+              This card has an application fee of <span className="font-mono text-navy-600">${parseFloat(fees[selected].application_fee).toFixed(2)}</span>, set by administration. No payment is required now — your application will be reviewed first.
             </p>
           )}
           <button disabled={applyMut.isPending} onClick={()=>applyMut.mutate(selected)}
@@ -91,7 +91,7 @@ export default function CardApplyPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Application submitted</h3>
           <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
             Your {selected && META[selected].name} application is now under review. Our team typically reviews
-            applications within 1 business day. You'll be notified once a decision has been made â€” no further
+            applications within 1 business day. You'll be notified once a decision has been made — no further
             action is needed from you right now.
           </p>
           <button onClick={()=>navigate("/cards")} className="btn-primary py-2.5 px-6">

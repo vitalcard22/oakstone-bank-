@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../services/api";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -234,7 +234,7 @@ export default function AdminUsersPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold">{panel === 'credit' ? 'Credit Account' : 'Debit Account'}</h2>
-                  <p className="text-sm opacity-80 mt-0.5">{selectedUser.first_name} {selectedUser.last_name} Â· {selectedUser.email}</p>
+                  <p className="text-sm opacity-80 mt-0.5">{selectedUser.first_name} {selectedUser.last_name} · {selectedUser.email}</p>
                 </div>
                 <button onClick={closePanel} className="text-white/70 hover:text-white"><X size={22} /></button>
               </div>
@@ -263,8 +263,8 @@ export default function AdminUsersPage() {
                   {userAccounts?.map((a: any) => (
                     <option key={a.id} value={a.id}>
                       {a.account_type.charAt(0).toUpperCase() + a.account_type.slice(1)} Account
-                      â€” No. {a.account_number}
-                      â€” Balance: {fmt(parseFloat(a.balance || 0))}
+                      — No. {a.account_number}
+                      — Balance: {fmt(parseFloat(a.balance || 0))}
                     </option>
                   ))}
                 </select>
@@ -349,7 +349,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="mt-4">
                   <label className="label">Admin Notes (internal only)</label>
-                  <textarea className="input resize-none h-20" placeholder="Internal notes â€” not visible to the customer..."
+                  <textarea className="input resize-none h-20" placeholder="Internal notes — not visible to the customer..."
                     value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
                 </div>
               </div>
@@ -374,7 +374,7 @@ export default function AdminUsersPage() {
                   className={`flex-1 py-3 rounded-xl text-white text-sm font-semibold transition-colors ${
                     panel === 'credit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                   } disabled:opacity-60`}>
-                  {isPending ? 'Processing...' : panel === 'credit' ? 'âœ“ Confirm Credit' : 'âœ“ Confirm Debit'}
+                  {isPending ? 'Processing...' : panel === 'credit' ? '✓ Confirm Credit' : '✓ Confirm Debit'}
                 </button>
                 <button onClick={closePanel}
                   className="px-6 py-3 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
@@ -394,7 +394,7 @@ export default function AdminUsersPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold">Transaction History</h2>
-                  <p className="text-sm opacity-80 mt-0.5">{selectedUser.first_name} {selectedUser.last_name} Â· {selectedUser.email}</p>
+                  <p className="text-sm opacity-80 mt-0.5">{selectedUser.first_name} {selectedUser.last_name} · {selectedUser.email}</p>
                 </div>
                 <button onClick={closePanel} className="text-white/70 hover:text-white"><X size={22} /></button>
               </div>
@@ -445,7 +445,7 @@ export default function AdminUsersPage() {
                                 t.tx_type === 'debit' ? 'bg-red-100 text-red-600' :
                                 'bg-blue-100 text-blue-700'
                               }`}>
-                                {t.tx_type === 'credit' ? '+' : t.tx_type === 'debit' ? 'âˆ’' : 'â†”'}
+                                {t.tx_type === 'credit' ? '+' : t.tx_type === 'debit' ? '−' : '↔'}
                               </div>
                               <div>
                                 <p className="font-semibold text-gray-900 text-sm">{t.description || 'Transaction'}</p>
@@ -456,7 +456,7 @@ export default function AdminUsersPage() {
                             </div>
                             <div className="text-right">
                               <p className={`text-lg font-bold ${t.tx_type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
-                                {t.tx_type === 'credit' ? '+' : 'âˆ’'}{fmt(parseFloat(t.amount))}
+                                {t.tx_type === 'credit' ? '+' : '−'}{fmt(parseFloat(t.amount))}
                               </p>
                               <span className={`text-xs px-2 py-0.5 rounded-full ${t.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                                 {t.status}
@@ -466,7 +466,7 @@ export default function AdminUsersPage() {
                           <div className="grid grid-cols-3 gap-3 bg-gray-50 rounded-lg p-3 text-xs">
                             <div>
                               <p className="text-gray-400 mb-0.5">Reference ID</p>
-                              <p className="font-mono font-medium text-gray-700 truncate">{t.reference_id || 'â€”'}</p>
+                              <p className="font-mono font-medium text-gray-700 truncate">{t.reference_id || '—'}</p>
                             </div>
                             <div>
                               <p className="text-gray-400 mb-0.5">Type</p>
@@ -474,7 +474,7 @@ export default function AdminUsersPage() {
                             </div>
                             <div>
                               <p className="text-gray-400 mb-0.5">Method</p>
-                              <p className="font-medium text-gray-700 capitalize">{meta.transactionType || t.tx_type || 'â€”'}</p>
+                              <p className="font-medium text-gray-700 capitalize">{meta.transactionType || t.tx_type || '—'}</p>
                             </div>
                             {(meta.senderName || meta.recipientName) && (
                               <div>

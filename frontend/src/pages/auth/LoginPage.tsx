@@ -1,4 +1,4 @@
-﻿import { useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
@@ -67,7 +67,7 @@ export default function LoginPage() {
                 <label className="label mb-0">Password</label>
                 <Link to="/forgot-password" className="text-xs text-gold-500 hover:underline">Forgot password?</Link>
               </div>
-              <input {...register('password')} type="password" className="input" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autoComplete="current-password"/>
+              <input {...register('password')} type="password" className="input" placeholder="••••••••" autoComplete="current-password"/>
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full py-3">
