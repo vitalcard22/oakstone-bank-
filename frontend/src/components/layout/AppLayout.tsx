@@ -1,10 +1,11 @@
-﻿import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { authApi } from '../../services/api';
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Zap,
   CreditCard, Landmark, Bell, User, LogOut, Shield,
   TrendingUp, PiggyBank, Lock, Target, ShieldCheck, Moon, Sun,
+  Menu, X,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -36,12 +37,15 @@ export default function AppLayout() {
   const { user, logout, isAdmin } = useAuthStore();
   const navigate = useNavigate();
   const [dark, setDark] = useState(false);
+  const [open, setOpen] = useState(false); // mobile drawer
 
   function handleLogout() {
     try { authApi.logout().catch(() => {}); } catch { }
     logout();
     navigate('/');
   }
+
+  const closeDrawer = () => setOpen(false);
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${isActive ? 'bg-white/10 text-white' : 'text-white/65 hover:text-white hover:bg-white/5'}`;
@@ -51,17 +55,42 @@ export default function AppLayout() {
   );
 
   return (
-    <div className={`min-h-screen flex ${dark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-      <aside className="w-56 bg-emerald-900 flex flex-col flex-shrink-0">
-        {/* Brand */}
-        <div className="px-5 py-5 border-b border-white/10">
-          <Link to="/" className="flex items-center gap-2.5">
+    <div className={`min-h-screen md:flex ${dark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+
+      {/* Mobile top bar */}
+      <header className="md:hidden sticky top-0 z-30 flex items-center justify-between bg-emerald-900 px-4 py-3">
+        <Link to="/" className="flex items-center gap-2">
+          <img src="/logo.png" alt="Oakstones 1 Bank" className="w-7 h-7 object-contain" />
+          <span className="text-white font-semibold text-sm">Oakstones 1 Bank</span>
+        </Link>
+        <button onClick={() => setOpen(true)} aria-label="Open menu" className="text-white p-1">
+          <Menu size={22} />
+        </button>
+      </header>
+
+      {/* Backdrop (mobile only, when drawer open) */}
+      {open && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={closeDrawer} />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-emerald-900 flex flex-col transform transition-transform duration-200 ease-in-out
+          md:static md:z-auto md:w-56 md:translate-x-0 md:flex-shrink-0
+          ${open ? 'translate-x-0' : '-translate-x-full'}`}
+      >
+        {/* Brand + mobile close */}
+        <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
+          <Link to="/" onClick={closeDrawer} className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Oakstones 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
             <div>
               <p className="text-white font-semibold text-sm leading-tight">Oakstones 1 Bank</p>
               <p className="text-emerald-400 text-xs">Prototype</p>
             </div>
           </Link>
+          <button onClick={closeDrawer} aria-label="Close menu" className="md:hidden text-white/70 hover:text-white p-1">
+            <X size={20} />
+          </button>
         </div>
 
         {/* User */}
@@ -76,7 +105,7 @@ export default function AppLayout() {
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {sectionLabel('Banking')}
           {NAV.map(({ to, label, Icon }) => (
-            <NavLink key={to} to={to} className={navClass}>
+            <NavLink key={to} to={to} onClick={closeDrawer} className={navClass}>
               <Icon size={15} className="flex-shrink-0" />
               {label}
             </NavLink>
@@ -84,7 +113,7 @@ export default function AppLayout() {
 
           {sectionLabel('Wealth')}
           {WEALTH_NAV.map(({ to, label, Icon }) => (
-            <NavLink key={to} to={to} className={navClass}>
+            <NavLink key={to} to={to} onClick={closeDrawer} className={navClass}>
               <Icon size={15} className="flex-shrink-0" />
               {label}
             </NavLink>
@@ -92,7 +121,7 @@ export default function AppLayout() {
 
           {sectionLabel('Account')}
           {ACCOUNT_NAV.map(({ to, label, Icon }) => (
-            <NavLink key={to} to={to} className={navClass}>
+            <NavLink key={to} to={to} onClick={closeDrawer} className={navClass}>
               <Icon size={15} className="flex-shrink-0" />
               {label}
             </NavLink>
@@ -101,7 +130,7 @@ export default function AppLayout() {
           {isAdmin() && (
             <>
               {sectionLabel('Admin')}
-              <NavLink to="/admin/dashboard" className={navClass}>
+              <NavLink to="/admin/dashboard" onClick={closeDrawer} className={navClass}>
                 <Shield size={15} className="flex-shrink-0" />
                 Admin panel
               </NavLink>
@@ -128,8 +157,8 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto px-6 py-8">
+      <main className="flex-1 overflow-auto min-w-0">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <Outlet />
         </div>
       </main>
