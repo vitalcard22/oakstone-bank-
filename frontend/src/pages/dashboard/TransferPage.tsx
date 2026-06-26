@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -104,15 +104,17 @@ export default function TransferPage() {
         accountNumber:      d.recipientAccount,
         bankName:           d.recipientBank,
         routingOrSwift:     d.recipientRoutingSwift || undefined,
-        intermediaryBank:   d.intermediaryBank || undefined,
         bankCountry:        d.bankCountry || undefined,
-        beneficiaryAddress: d.beneficiaryAddress || undefined,
+        beneficiaryStreet:  d.beneficiaryStreet || undefined,
+        beneficiaryCity:    d.beneficiaryCity || undefined,
+        beneficiaryState:   d.beneficiaryState || undefined,
+        beneficiaryCountry: d.beneficiaryCountry || undefined,
         memo:               d.wireMemo || undefined,
       },
     };
   };
 
-  // Validate â†’ go to review (looking up the Zelle recipient name first).
+  // Validate → go to review (looking up the Zelle recipient name first).
   const onValid = async (d: any) => {
     if (tab === 'zelle') {
       setZelleName(null);
@@ -172,14 +174,14 @@ export default function TransferPage() {
       {step === 'form' && (
         <div className="card p-6 max-w-lg space-y-4">
 
-          {/* From account â€” all tabs */}
+          {/* From account — all tabs */}
           <div>
             <label className="label">From account</label>
             <select {...register('fromAccountId', { required: 'Required' })} className="input">
               <option value="">Select account</option>
               {active.map((a: any) => (
                 <option key={a.id} value={a.id}>
-                  {a.account_type} ****{a.account_number?.slice(-4)} â€” ${parseFloat(a.available_balance ?? 0).toFixed(2)}
+                  {a.account_type} ****{a.account_number?.slice(-4)} — ${parseFloat(a.available_balance ?? 0).toFixed(2)}
                 </option>
               ))}
             </select>
@@ -276,16 +278,26 @@ export default function TransferPage() {
               <input {...register('recipientRoutingSwift')} className="input" placeholder="9-digit ABA for US, or SWIFT for international" />
             </div>
             <div>
-              <label className="label">Intermediary / correspondent bank (optional)</label>
-              <input {...register('intermediaryBank')} className="input" placeholder="For some international wires" />
-            </div>
-            <div>
               <label className="label">Recipient bank country (optional)</label>
               <input {...register('bankCountry')} className="input" placeholder="e.g. United States" />
             </div>
             <div>
-              <label className="label">Beneficiary address (optional)</label>
-              <input {...register('beneficiaryAddress')} className="input" placeholder="Street, city, country" />
+              <label className="label">Beneficiary street address</label>
+              <input {...register('beneficiaryStreet')} className="input" placeholder="Street address" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">City</label>
+                <input {...register('beneficiaryCity')} className="input" placeholder="City" />
+              </div>
+              <div>
+                <label className="label">State / Province</label>
+                <input {...register('beneficiaryState')} className="input" placeholder="State / Province" />
+              </div>
+            </div>
+            <div>
+              <label className="label">Country</label>
+              <input {...register('beneficiaryCountry')} className="input" placeholder="Country" />
             </div>
             <div>
               <label className="label">Purpose / memo (optional)</label>
@@ -293,7 +305,7 @@ export default function TransferPage() {
             </div>
           </>)}
 
-          {/* Amount â€” all tabs */}
+          {/* Amount — all tabs */}
           <div>
             <label className="label">Amount</label>
             <div className="relative">
@@ -343,9 +355,8 @@ export default function TransferPage() {
               <Row label="Account / IBAN" value={review.recipientAccount} />
               <Row label="Bank" value={review.recipientBank} />
               <Row label="Routing / SWIFT" value={review.recipientRoutingSwift} />
-              <Row label="Intermediary bank" value={review.intermediaryBank} />
               <Row label="Bank country" value={review.bankCountry} />
-              <Row label="Beneficiary address" value={review.beneficiaryAddress} />
+              <Row label="Beneficiary address" value={[review.beneficiaryStreet, review.beneficiaryCity, review.beneficiaryState, review.beneficiaryCountry].filter(Boolean).join(', ') || undefined} />
               <Row label="Purpose / memo" value={review.wireMemo} />
             </>)}
           </div>
