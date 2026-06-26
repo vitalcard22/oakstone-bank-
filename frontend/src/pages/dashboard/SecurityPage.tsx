@@ -1,4 +1,4 @@
-import { ShieldCheck, Smartphone, Key, AlertTriangle, CheckCircle, Globe, Clock } from 'lucide-react';
+import { ShieldCheck, Smartphone, Key, AlertTriangle, CheckCircle, Globe } from 'lucide-react';
 
 const SESSIONS = [
   { device: 'Chrome on Windows 11', location: 'Lagos, Nigeria', time: 'Active now', current: true },
@@ -6,13 +6,6 @@ const SESSIONS = [
   { device: 'Chrome on Windows 11', location: 'Abuja, Nigeria', time: 'Yesterday 4:32 PM', current: false },
 ];
 
-const LOGIN_HISTORY = [
-  { event: 'Successful login', device: 'Chrome · Windows', location: 'Lagos', time: 'Today 9:35 AM', success: true },
-  { event: 'Successful login', device: 'Safari · iPhone', location: 'Lagos', time: 'Yesterday 7:12 PM', success: true },
-  { event: 'Failed login attempt', device: 'Unknown', location: 'Unknown', time: '2 days ago', success: false },
-  { event: 'Successful login', device: 'Chrome · Windows', location: 'Abuja', time: '3 days ago', success: true },
-  { event: '2FA code used', device: 'Chrome · Windows', location: 'Lagos', time: '3 days ago', success: true },
-];
 
 export default function SecurityPage() {
   return (
@@ -108,31 +101,6 @@ export default function SecurityPage() {
           </div>
         </div>
 
-        {/* Login history */}
-        <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Login history</h2>
-          <div className="space-y-3">
-            {LOGIN_HISTORY.map((l, i) => (
-              <div key={i} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${l.success ? 'bg-green-100' : 'bg-red-100'}`}>
-                  {l.success
-                    ? <CheckCircle size={14} className="text-green-600" />
-                    : <AlertTriangle size={14} className="text-red-500" />
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{l.event}</p>
-                  <p className="text-xs text-gray-400">{l.device} · {l.location}</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0">
-                  <Clock size={11} />
-                  {l.time}
-                </div>
-              </div>
-            ))}
-          </div>
-          <button className="w-full mt-4 text-sm text-emerald-700 hover:underline">View full history</button>
-        </div>
       </div>
     </div>
   );
