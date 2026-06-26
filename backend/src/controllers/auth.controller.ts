@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+﻿import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuid } from 'uuid';
@@ -345,7 +345,7 @@ export async function updateMe(req: Request, res: Response, next: NextFunction):
 export async function setupMfa(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = (req as any).user.id;
-    const secret = speakeasy.generateSecret({ name: `OakstoneBank`, length: 20 });
+    const secret = speakeasy.generateSecret({ name: `OakstonesBank`, length: 20 });
     const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
     await getRedis().setEx(`mfa_setup:${userId}`, 300, secret.base32);
     res.json({ secret: secret.base32, qrCode });

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { authApi } from "../../services/api";
 import { useAuthStore, normalizeUser } from "../../stores/auth.store";
@@ -40,8 +40,8 @@ export default function LoginCodePage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-3 mb-4">
-            <img src="/logo.png" alt="Oakstone 1 Bank" className="w-12 h-12 object-contain" />
-            <span className="text-white text-2xl font-semibold">Oakstone 1 Bank</span>
+            <img src="/logo.png" alt="Oakstones 1 Bank" className="w-12 h-12 object-contain" />
+            <span className="text-white text-2xl font-semibold">Oakstones 1 Bank</span>
           </Link>
           <p className="text-white/60 text-sm">Two-step verification</p>
         </div>
@@ -56,7 +56,7 @@ export default function LoginCodePage() {
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             onKeyDown={(e) => e.key === "Enter" && submit()}
             inputMode="numeric"
-            placeholder="••••••"
+            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢"
             className="input text-center text-2xl tracking-[0.5em] font-mono"
             maxLength={6}
           />

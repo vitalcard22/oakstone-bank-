@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+﻿import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
@@ -50,8 +50,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-3 mb-4">
-            <img src="/logo.png" alt="Oakstone 1 Bank" className="w-12 h-12 object-contain" />
-            <span className="text-white text-2xl font-semibold">Oakstone 1 Bank</span>
+            <img src="/logo.png" alt="Oakstones 1 Bank" className="w-12 h-12 object-contain" />
+            <span className="text-white text-2xl font-semibold">Oakstones 1 Bank</span>
           </Link>
           <p className="text-white/60 text-sm">Sign in to your account</p>
         </div>
@@ -67,7 +67,7 @@ export default function LoginPage() {
                 <label className="label mb-0">Password</label>
                 <Link to="/forgot-password" className="text-xs text-gold-500 hover:underline">Forgot password?</Link>
               </div>
-              <input {...register('password')} type="password" className="input" placeholder="••••••••" autoComplete="current-password"/>
+              <input {...register('password')} type="password" className="input" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autoComplete="current-password"/>
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full py-3">

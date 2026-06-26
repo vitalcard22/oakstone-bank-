@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,8 +13,8 @@ const TABS = [
 ];
 
 const BLURB: Record<string, string> = {
-  transfer: 'Send money to another Oakstone account by account number. Posts instantly.',
-  zelle:    'Send money in minutes to anyone with an Oakstone account using their email or phone.',
+  transfer: 'Send money to another Oakstones account by account number. Posts instantly.',
+  zelle:    'Send money in minutes to anyone with an Oakstones account using their email or phone.',
   ach:      'Move money to or from an account at another US bank. Settles in 1-3 business days.',
   wire:     'Send a domestic or international wire. Reviewed before sending; minimum $100.',
 };
@@ -112,14 +112,14 @@ export default function TransferPage() {
     };
   };
 
-  // Validate → go to review (looking up the Zelle recipient name first).
+  // Validate â†’ go to review (looking up the Zelle recipient name first).
   const onValid = async (d: any) => {
     if (tab === 'zelle') {
       setZelleName(null);
       setZelleNotFound(false);
       try {
         const res = await txApi.zelleLookup(d.identifier);
-        if (res.data?.found) setZelleName(res.data.name || 'Oakstone customer');
+        if (res.data?.found) setZelleName(res.data.name || 'Oakstones customer');
         else setZelleNotFound(true);
       } catch {
         setZelleNotFound(true);
@@ -172,14 +172,14 @@ export default function TransferPage() {
       {step === 'form' && (
         <div className="card p-6 max-w-lg space-y-4">
 
-          {/* From account — all tabs */}
+          {/* From account â€” all tabs */}
           <div>
             <label className="label">From account</label>
             <select {...register('fromAccountId', { required: 'Required' })} className="input">
               <option value="">Select account</option>
               {active.map((a: any) => (
                 <option key={a.id} value={a.id}>
-                  {a.account_type} ****{a.account_number?.slice(-4)} — ${parseFloat(a.available_balance ?? 0).toFixed(2)}
+                  {a.account_type} ****{a.account_number?.slice(-4)} â€” ${parseFloat(a.available_balance ?? 0).toFixed(2)}
                 </option>
               ))}
             </select>
@@ -190,7 +190,7 @@ export default function TransferPage() {
           {tab === 'transfer' && (<>
             <div>
               <label className="label">Recipient account number</label>
-              <input {...register('toAccountNumber', { required: 'Required', minLength: { value: 4, message: 'Enter a valid account number' } })} className="input" placeholder="Enter the recipient's Oakstone account number" inputMode="numeric" />
+              <input {...register('toAccountNumber', { required: 'Required', minLength: { value: 4, message: 'Enter a valid account number' } })} className="input" placeholder="Enter the recipient's Oakstones account number" inputMode="numeric" />
               {err('toAccountNumber')}
             </div>
             <div>
@@ -209,7 +209,7 @@ export default function TransferPage() {
               <label className="label">Recipient email or phone</label>
               <input {...register('identifier', { required: 'Required' })} className="input" placeholder="email@example.com or +1..." />
               {err('identifier')}
-              <p className="text-xs text-gray-400 mt-1">Recipient must have an active Oakstone account.</p>
+              <p className="text-xs text-gray-400 mt-1">Recipient must have an active Oakstones account.</p>
             </div>
             <div>
               <label className="label">Note (optional)</label>
@@ -293,7 +293,7 @@ export default function TransferPage() {
             </div>
           </>)}
 
-          {/* Amount — all tabs */}
+          {/* Amount â€” all tabs */}
           <div>
             <label className="label">Amount</label>
             <div className="relative">
@@ -352,7 +352,7 @@ export default function TransferPage() {
 
           {tab === 'zelle' && zelleNotFound && (
             <div className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
-              We couldn't find an Oakstone account for this recipient. If you continue, the transfer will be rejected unless they enroll.
+              We couldn't find an Oakstones account for this recipient. If you continue, the transfer will be rejected unless they enroll.
             </div>
           )}
 

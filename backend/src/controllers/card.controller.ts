@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+﻿import { Request, Response, NextFunction } from 'express';
 import { getDb } from '../config/db';
 import { AppError } from '../utils/AppError';
 import { auditLog } from '../utils/audit';
@@ -14,7 +14,7 @@ export async function getFeeConfig(_req: Request, res: Response, next: NextFunct
 }
 
 // POST /cards/apply
-// Application goes straight to 'pending' for admin review. No payment step —
+// Application goes straight to 'pending' for admin review. No payment step â€”
 // the application fee (if any) is shown for transparency only and is waived
 // manually by admin on approval, since new users start with $0 balance.
 export async function applyForCard(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -80,7 +80,7 @@ export async function listCards(req: Request, res: Response, next: NextFunction)
   } catch (e) { next(e); }
 }
 
-// POST /cards/:id/freeze — user freezes own card
+// POST /cards/:id/freeze â€” user freezes own card
 export async function freezeCard(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = (req as any).user.id;
@@ -95,8 +95,8 @@ export async function freezeCard(req: Request, res: Response, next: NextFunction
   } catch (e) { next(e); }
 }
 
-// POST /cards/:id/unfreeze — user unfreezes own card.
-// A card frozen by Oakstone (admin) CANNOT be unfrozen by the user.
+// POST /cards/:id/unfreeze â€” user unfreezes own card.
+// A card frozen by Oakstones (admin) CANNOT be unfrozen by the user.
 export async function unfreezeCard(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = (req as any).user.id;
@@ -113,7 +113,7 @@ export async function unfreezeCard(req: Request, res: Response, next: NextFuncti
     if (card.status !== 'frozen') throw new AppError('Card is not frozen', 400);
 
     if (card.frozen_by === 'admin') {
-      throw new AppError('This card was frozen by Oakstone. Please contact support.', 403);
+      throw new AppError('This card was frozen by Oakstones. Please contact support.', 403);
     }
 
     await db.query(

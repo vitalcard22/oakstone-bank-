@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
+﻿import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { authApi } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -36,9 +36,9 @@ export default function AdminLayout() {
       <aside className="w-56 bg-navy-700 flex flex-col flex-shrink-0">
         <div className="px-5 py-5 border-b border-white/10">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Oakstone 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
+            <img src="/logo.png" alt="Oakstones 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
             <div>
-              <p className="text-white text-sm font-semibold">Oakstone 1 Bank</p>
+              <p className="text-white text-sm font-semibold">Oakstones 1 Bank</p>
               <p className="text-gold-400 text-xs capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
           </Link>

@@ -1,4 +1,4 @@
-// Oakstone 1 Bank — Privacy Policy
+﻿// Oakstones 1 Bank â€” Privacy Policy
 // IMPORTANT: This is a generic template, NOT legal advice. Have a lawyer review
 // before publishing on a real financial institution's site.
 // Wire to its route (e.g. <Route path="/privacy" element={<PrivacyPolicy />} />).
@@ -13,7 +13,7 @@ const PrivacyPolicy: React.FC = () => {
         <h1 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#1F6B4A", fontSize: 44, margin: "18px 0 6px" }}>Privacy Policy</h1>
         <p style={{ color: "#5C5A4F", fontSize: 14, marginBottom: 32 }}>Last updated: January 2026</p>
         <div style={{ fontSize: 17, lineHeight: 1.7 }}>
-          <p>Oakstone 1 Bank ("we," "us," or "the Bank") is committed to protecting the privacy of our clients. This policy describes how we collect, use, and safeguard your personal information.</p>
+          <p>Oakstones 1 Bank ("we," "us," or "the Bank") is committed to protecting the privacy of our clients. This policy describes how we collect, use, and safeguard your personal information.</p>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#1F6B4A", fontSize: 26, marginTop: 28 }}>Information We Collect</h2>
           <p>We collect information you provide when opening an account, including your name, contact details, government identification, and financial information necessary to provide banking services.</p>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#1F6B4A", fontSize: 26, marginTop: 28 }}>How We Use Your Information</h2>
@@ -24,7 +24,7 @@ const PrivacyPolicy: React.FC = () => {
           <p>You may request access to, correction of, or deletion of your personal information, subject to legal and regulatory retention requirements. Contact us at privacy@oakstoneone.com.</p>
         </div>
         <p style={{ marginTop: 40, paddingTop: 20, borderTop: "1px solid #E9E3D4", fontSize: 13, color: "#5C5A4F" }}>
-          © 2000–2026 Oakstone 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
+          Â© 2000â€“2026 Oakstones 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
         </p>
       </div>
     </div>

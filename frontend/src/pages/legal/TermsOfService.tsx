@@ -1,4 +1,4 @@
-// Oakstone 1 Bank — Terms of Service
+﻿// Oakstones 1 Bank â€” Terms of Service
 // IMPORTANT: This is a generic template, NOT legal advice. Have a lawyer review
 // before publishing on a real financial institution's site.
 // Wire to its route (e.g. <Route path="/terms" element={<TermsOfService />} />).
@@ -13,7 +13,7 @@ const TermsOfService: React.FC = () => {
         <h1 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#1F6B4A", fontSize: 44, margin: "18px 0 6px" }}>Terms of Service</h1>
         <p style={{ color: "#5C5A4F", fontSize: 14, marginBottom: 32 }}>Last updated: January 2026</p>
         <div style={{ fontSize: 17, lineHeight: 1.7 }}>
-          <p>These Terms of Service govern your use of Oakstone 1 Bank's website and digital banking services. By using our services, you agree to these terms.</p>
+          <p>These Terms of Service govern your use of Oakstones 1 Bank's website and digital banking services. By using our services, you agree to these terms.</p>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#1F6B4A", fontSize: 26, marginTop: 28 }}>Use of Services</h2>
           <p>You agree to use our services only for lawful purposes and in accordance with these terms. You are responsible for maintaining the confidentiality of your login credentials.</p>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#1F6B4A", fontSize: 26, marginTop: 28 }}>Account Responsibilities</h2>
@@ -24,7 +24,7 @@ const TermsOfService: React.FC = () => {
           <p>We may update these terms from time to time. Continued use of our services constitutes acceptance of any revised terms.</p>
         </div>
         <p style={{ marginTop: 40, paddingTop: 20, borderTop: "1px solid #E9E3D4", fontSize: 13, color: "#5C5A4F" }}>
-          © 2000–2026 Oakstone 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
+          Â© 2000â€“2026 Oakstones 1 Bank. All rights reserved. This document is provided for general informational purposes and does not constitute legal advice.
         </p>
       </div>
     </div>

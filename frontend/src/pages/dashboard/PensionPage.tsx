@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Landmark, TrendingUp, Calendar, ShieldCheck, Info, ChevronDown, ChevronUp } from 'lucide-react';
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -15,7 +15,7 @@ const FAQ = [
   { q: 'When can I access my pension?', a: 'You can start withdrawing from age 55 (rising to 57 in 2028). Up to 25% can be taken as a tax-free lump sum.' },
   { q: 'How does tax relief work?', a: 'For every $80 you contribute, the government adds $20 in basic rate tax relief, making your effective contribution $100.' },
   { q: 'Is my pension protected?', a: 'FSCS protection covers eligible deposits up to $85,000. This is a prototype system for demonstration purposes.' },
-  { q: 'Can I transfer an existing pension?', a: 'Yes. You can transfer pension pots from previous employers or personal pensions into your Oakstone SIPP.' },
+  { q: 'Can I transfer an existing pension?', a: 'Yes. You can transfer pension pots from previous employers or personal pensions into your Oakstones SIPP.' },
 ];
 
 export default function PensionPage() {
@@ -74,7 +74,7 @@ export default function PensionPage() {
               </div>
               <div className="bg-blue-50 rounded-lg p-3 flex gap-2">
                 <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-700">Based on basic rate tax relief (20%), a $200 contribution costs you $160. Oakstone adds $40 on your behalf.</p>
+                <p className="text-xs text-blue-700">Based on basic rate tax relief (20%), a $200 contribution costs you $160. Oakstones adds $40 on your behalf.</p>
               </div>
               <button className="btn-primary w-full py-3">Contribute to pension</button>
             </div>

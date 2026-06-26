@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Landmark, PiggyBank, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -10,7 +10,7 @@ const PRODUCTS = [
     color: 'bg-emerald-50 text-emerald-700',
     border: 'border-emerald-200',
     title: 'Investment Account',
-    subtitle: 'IDA — Investment Dealing Account',
+    subtitle: 'IDA â€” Investment Dealing Account',
     description: 'Build long-term wealth with access to stocks, ETFs, bonds and more. Start with as little as $100.',
     features: ['Stocks & ETFs', 'Real-time portfolio tracking', 'Dividend reinvestment', 'No trading fees on ETFs'],
     rate: null,
@@ -57,7 +57,7 @@ const PRODUCTS = [
     title: 'Fixed Deposit',
     subtitle: 'Guaranteed returns, locked rate',
     description: 'Lock in a guaranteed interest rate for 3, 6, 12 or 24 months. Perfect for capital you won\'t need short-term.',
-    features: ['Guaranteed fixed rate', 'Terms from 3–24 months', 'FSCS protected up to $85k', 'Min. deposit $1,000'],
+    features: ['Guaranteed fixed rate', 'Terms from 3â€“24 months', 'FSCS protected up to $85k', 'Min. deposit $1,000'],
     rate: '5.20%',
     rateLabel: 'AER (12 months)',
     cta: 'Open Fixed Deposit',
@@ -75,11 +75,11 @@ export default function WealthHubPage() {
       <div className="bg-gradient-to-br from-emerald-800 to-emerald-600 rounded-2xl p-8 mb-8 text-white">
         <div className="flex items-center gap-2 mb-3">
           <ShieldCheck size={20} className="text-emerald-300" />
-          <span className="text-emerald-300 text-sm font-medium">Oakstone 1 Bank — Wealth Hub</span>
+          <span className="text-emerald-300 text-sm font-medium">Oakstones 1 Bank â€” Wealth Hub</span>
         </div>
         <h1 className="text-3xl font-bold mb-2">Grow your wealth</h1>
         <p className="text-emerald-100 text-lg max-w-xl">
-          From tax-free savings to retirement planning and investment portfolios — everything you need to build lasting financial security.
+          From tax-free savings to retirement planning and investment portfolios â€” everything you need to build lasting financial security.
         </p>
         <div className="mt-6 grid grid-cols-3 gap-4 max-w-sm">
           {[
@@ -138,7 +138,7 @@ export default function WealthHubPage() {
       {/* Disclaimer */}
       <p className="text-xs text-gray-400 mt-6 text-center">
         Capital at risk. The value of investments can go down as well as up. FSCS protection applies to eligible deposits only.
-        Oakstone 1 Bank is a prototype — not a regulated financial institution.
+        Oakstones 1 Bank is a prototype â€” not a regulated financial institution.
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -36,6 +36,6 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use(errorHandler);
 const PORT = Number(process.env.PORT ?? 4000);
-http.listen(PORT, '0.0.0.0', () => { console.log('[Oakstone] Ready on 0.0.0.0:' + PORT); initWebSocket(http); });
+http.listen(PORT, '0.0.0.0', () => { console.log('[Oakstones] Ready on 0.0.0.0:' + PORT); initWebSocket(http); });
 }
 bootstrap().catch((e) => { console.error('Fatal:', e.message); process.exit(1); });

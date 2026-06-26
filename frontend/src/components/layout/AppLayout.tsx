@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
+﻿import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { authApi } from '../../services/api';
 import {
@@ -56,9 +56,9 @@ export default function AppLayout() {
         {/* Brand */}
         <div className="px-5 py-5 border-b border-white/10">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Oakstone 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
+            <img src="/logo.png" alt="Oakstones 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
             <div>
-              <p className="text-white font-semibold text-sm leading-tight">Oakstone 1 Bank</p>
+              <p className="text-white font-semibold text-sm leading-tight">Oakstones 1 Bank</p>
               <p className="text-emerald-400 text-xs">Prototype</p>
             </div>
           </Link>

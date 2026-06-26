@@ -1,4 +1,4 @@
-// Oakstone 1 Bank — Complete heritage landing page
+﻿// Oakstones 1 Bank â€” Complete heritage landing page
 // White background, bright emerald accents. Uses /logo.png and /hero.jpg from public/.
 // Includes: trust bar, mobile menu, hero, heritage, services, reserve card,
 // rates, segments, security, FAQ, testimonials, presence, contact, footer, cookie banner.
@@ -13,14 +13,14 @@ const HERITAGE_SRC = "/heritage.jpg";
 
 const services = [
   { name: "Accounts", body: "Checking, savings, and money market accounts held with century-old discipline. Open, fund, and manage every account from one ledger." },
-  { name: "Transfers", body: "Move funds between your accounts or to another party — settled securely, recorded permanently, and confirmed instantly." },
+  { name: "Transfers", body: "Move funds between your accounts or to another party â€” settled securely, recorded permanently, and confirmed instantly." },
   { name: "Send Money", body: "Pay a person directly, or send by Zelle. Quick when you need it, with the safeguards of an old institution." },
   { name: "Cards", body: "Apply for a credit card, review your line, and freeze a card in an instant if it ever leaves your sight." },
   { name: "Loans", body: "Apply for lending against a future you can see. Considered terms, reviewed by people, not algorithms alone." },
   { name: "Bill Pay", body: "Settle recurring obligations on schedule, with every payment monitored and accounted for." },
   { name: "Investment Account", body: "Build long-term wealth with access to stocks, ETFs, and bonds. Real-time portfolio tracking with no trading fees on ETFs." },
   { name: "Pension (SIPP)", body: "A tax-advantaged way to save for retirement. Contributions benefit from tax relief, with flexible access from age 55." },
-  { name: "ISA", body: "Save up to $20,000 per year completely tax-free. Interest, dividends and gains sheltered — with flexible withdrawals anytime." },
+  { name: "ISA", body: "Save up to $20,000 per year completely tax-free. Interest, dividends and gains sheltered â€” with flexible withdrawals anytime." },
   { name: "Fixed Deposit", body: "Lock in a guaranteed interest rate for 3 to 24 months. Know exactly what you will earn before you commit a single dollar." },
 ];
 
@@ -37,16 +37,16 @@ const rates = [
 ];
 
 const faqs = [
-  { q: "How do I open an account?", a: "Select “Open an Account,” provide a few details for identity verification, and fund your account. Most applications are reviewed within one business day." },
+  { q: "How do I open an account?", a: "Select â€œOpen an Account,â€ provide a few details for identity verification, and fund your account. Most applications are reviewed within one business day." },
   { q: "Is my money insured?", a: "Yes. Deposits are insured by the Federal Deposit Insurance Corporation (FDIC) up to the maximum permitted by law." },
   { q: "Can I freeze my card if I lose it?", a: "Instantly. From your dashboard you can freeze and unfreeze any card yourself, at any hour, with no call required." },
-  { q: "Do you have physical branches?", a: "We do. Our headquarters and regional branches welcome clients during banking hours — no appointment necessary." },
+  { q: "Do you have physical branches?", a: "We do. Our headquarters and regional branches welcome clients during banking hours â€” no appointment necessary." },
   { q: "How is my account protected?", a: "Every account is secured with bank-grade encryption, continuous fraud monitoring, and round-the-clock account oversight." },
 ];
 
 const testimonials = [
-  { quote: "Three generations of my family have banked with Oakstone. They have never once given us reason to look elsewhere.", name: "Eleanor V.", role: "Private client, since 1987", img: "/avatar-1.jpg" },
-  { quote: "When my card was compromised abroad, it was frozen and reissued before I’d finished my coffee. That is service.", name: "Marcus T.", role: "Reserve cardholder", img: "/avatar-2.jpg" },
+  { quote: "Three generations of my family have banked with Oakstones. They have never once given us reason to look elsewhere.", name: "Eleanor V.", role: "Private client, since 1987", img: "/avatar-1.jpg" },
+  { quote: "When my card was compromised abroad, it was frozen and reissued before Iâ€™d finished my coffee. That is service.", name: "Marcus T.", role: "Reserve cardholder", img: "/avatar-2.jpg" },
   { quote: "They lent to my business when the numbers were hard to read. A banker, not an algorithm, made that call.", name: "Raj N.", role: "Business client", img: "/avatar-3.jpg" },
 ];
 
@@ -56,7 +56,7 @@ const FaqItem: React.FC<{ q: string; a: string }> = ({ q, a }) => {
     <div className="ob-faq-item">
       <button className="ob-faq-q" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span>{q}</span>
-        <span className="ob-faq-mark">{open ? "–" : "+"}</span>
+        <span className="ob-faq-mark">{open ? "â€“" : "+"}</span>
       </button>
       {open && <div className="ob-faq-a">{a}</div>}
     </div>
@@ -67,10 +67,10 @@ const ReserveCard: React.FC = () => (
   <div className="ob-cc">
     <div className="ob-cc-frame" />
     <div className="ob-cc-top">
-      <div className="ob-cc-name">Oakstone 1 Bank</div>
+      <div className="ob-cc-name">Oakstones 1 Bank</div>
       <div className="ob-cc-tier">RESERVE</div>
     </div>
-    <img className="ob-cc-seal" src={LOGO_SRC} alt="Oakstone 1 Bank seal" />
+    <img className="ob-cc-seal" src={LOGO_SRC} alt="Oakstones 1 Bank seal" />
     <div className="ob-cc-chip" />
     <div className="ob-cc-nfc"><span /><span /><span /></div>
     <div className="ob-cc-number">4914&nbsp;&nbsp;0001&nbsp;&nbsp;1914&nbsp;&nbsp;0001</div>
@@ -174,7 +174,7 @@ const LandingPage: React.FC = () => {
         .ob-card-copy p{color:rgba(255,255,255,.85);font-size:18px;margin:0 0 22px;max-width:32em;}
         .ob-card-feats{list-style:none;padding:0;margin:0 0 28px;}
         .ob-card-feats li{padding:10px 0;border-bottom:1px solid rgba(245,208,138,.3);color:rgba(255,255,255,.9);}
-        .ob-card-feats li:before{content:"—";color:var(--cream-gold);margin-right:12px;}
+        .ob-card-feats li:before{content:"â€”";color:var(--cream-gold);margin-right:12px;}
         .ob-cc-cta{display:inline-block;font-size:14px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;padding:14px 30px;border-radius:7px;background:var(--cream-gold);color:var(--emerald);}
         .ob-cc-cta:hover{background:#fff;}
         .ob-cc{position:relative;width:100%;max-width:460px;aspect-ratio:1.586/1;margin:0 auto;border-radius:22px;overflow:hidden;color:#eef2ee;font-family:var(--display);background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,transparent 22%),radial-gradient(140% 120% at 15% 10%,#2b6b4d 0%,#1c5238 30%,#133b29 55%,#0c2a1d 80%,#081d14 100%);box-shadow:0 40px 80px rgba(0,0,0,.55),inset 0 1px 1px rgba(255,255,255,.18),inset 0 -2px 6px rgba(0,0,0,.5);}
@@ -335,9 +335,9 @@ const LandingPage: React.FC = () => {
       <div className="ob-topline">
         <header className="ob-header">
           <div className="ob-brand">
-            <img src={LOGO_SRC} alt="Oakstone 1 Bank seal" />
+            <img src={LOGO_SRC} alt="Oakstones 1 Bank seal" />
             <div>
-              <div className="ob-brand-name">Oakstone 1 Bank</div>
+              <div className="ob-brand-name">Oakstones 1 Bank</div>
               <div className="ob-brand-sub">Established MCMXIV</div>
             </div>
           </div>
@@ -370,8 +370,8 @@ const LandingPage: React.FC = () => {
             <p className="ob-eyebrow">A century of financial heritage</p>
             <h1>Built on Legacy.<br />Secured by Trust.</h1>
             <p className="ob-hero-sub">
-              Oakstone 1 Bank has safeguarded the savings of individuals, enterprises,
-              and families since 1914 — with warmth, discipline, and the permanence
+              Oakstones 1 Bank has safeguarded the savings of individuals, enterprises,
+              and families since 1914 â€” with warmth, discipline, and the permanence
               that lasting institutions are made of.
             </p>
             <div className="ob-hero-cta">
@@ -393,14 +393,14 @@ const LandingPage: React.FC = () => {
             <p className="ob-eyebrow">Our heritage</p>
             <hr className="ob-rule" />
             <h2>A tradition of financial strength.</h2>
-            <p style={{ marginTop: 16 }}>We were founded on a simple conviction: that a bank is a custodian first. Where others chase the moment, we are built for permanence — measured in decades, not quarters.</p>
-            <p>Drawing on the traditions of America's enduring financial institutions, Oakstone 1 Bank practices a philosophy of long-term wealth preservation.</p>
+            <p style={{ marginTop: 16 }}>We were founded on a simple conviction: that a bank is a custodian first. Where others chase the moment, we are built for permanence â€” measured in decades, not quarters.</p>
+            <p>Drawing on the traditions of America's enduring financial institutions, Oakstones 1 Bank practices a philosophy of long-term wealth preservation.</p>
             <p>The oak on our seal is no ornament. It is the standard we hold ourselves to: rooted, deliberate, and stronger with every passing year.</p>
           </div>
           <div className="ob-heritage-visual">
-            <img className="ob-heritage-photo" src={HERITAGE_SRC} alt="Oakstone 1 Bank heritage" />
+            <img className="ob-heritage-photo" src={HERITAGE_SRC} alt="Oakstones 1 Bank heritage" />
             <div className="ob-heritage-seal">
-              <img src={LOGO_SRC} alt="Oakstone 1 Bank seal" />
+              <img src={LOGO_SRC} alt="Oakstones 1 Bank seal" />
             </div>
           </div>
         </div>
@@ -430,14 +430,14 @@ const LandingPage: React.FC = () => {
         <div className="ob-wrap">
           <p className="ob-eyebrow">The card you carry</p>
           <hr className="ob-rule" />
-          <h2>The Oakstone Reserve Card.</h2>
+          <h2>The Oakstones Reserve Card.</h2>
           <div className="ob-card-grid">
             <div className="ob-card-copy">
-              <p>One card, carried with the same quiet confidence as the institution behind it. No gimmicks — only the assurance of a bank that has kept its word for over a century.</p>
+              <p>One card, carried with the same quiet confidence as the institution behind it. No gimmicks â€” only the assurance of a bank that has kept its word for over a century.</p>
               <ul className="ob-card-feats">
                 <li>Freeze and unfreeze instantly from your dashboard</li>
                 <li>Real-time fraud monitoring on every transaction</li>
-                <li>Accepted worldwide, backed by Oakstone</li>
+                <li>Accepted worldwide, backed by Oakstones</li>
               </ul>
               <a href="/register" className="ob-cc-cta">Apply for the card</a>
             </div>
@@ -554,7 +554,7 @@ const LandingPage: React.FC = () => {
           <p className="ob-eyebrow">Getting started</p>
           <hr className="ob-rule" />
           <h2>How it works.</h2>
-          <p className="ob-lead">Opening an account takes about five minutes — and everything after is just as simple.</p>
+          <p className="ob-lead">Opening an account takes about five minutes â€” and everything after is just as simple.</p>
           <div className="ob-steps">
             <div className="ob-step">
               <div className="ob-step-num">1</div>
@@ -569,7 +569,7 @@ const LandingPage: React.FC = () => {
             <div className="ob-step">
               <div className="ob-step-num">3</div>
               <h3>Bank from anywhere</h3>
-              <p>Send money, manage cards, and track every transaction — any hour, from any device. No branch required.</p>
+              <p>Send money, manage cards, and track every transaction â€” any hour, from any device. No branch required.</p>
             </div>
           </div>
         </div>
@@ -579,7 +579,7 @@ const LandingPage: React.FC = () => {
       <section className="ob-section ob-cta">
         <div className="ob-wrap">
           <h2>Your future deserves a permanent home.</h2>
-          <p>Join the clients who have trusted Oakstone 1 Bank for over a century. Opening an account takes only a few minutes.</p>
+          <p>Join the clients who have trusted Oakstones 1 Bank for over a century. Opening an account takes only a few minutes.</p>
           <a href="/register" className="ob-cta-btn">Open an Account</a>
         </div>
       </section>
@@ -592,7 +592,7 @@ const LandingPage: React.FC = () => {
           <h2>At your service.</h2>
           <div className="ob-contact-grid">
             <div><h3>By correspondence</h3><p><a href="mailto:support@oaskstoneone.com">support@oaskstoneone.com</a><br />Replies within one business day.</p></div>
-            <div><h3>Headquarters</h3><p>Oakstone 1 Bank, Financial District.<br />Correspondence by appointment.</p></div>
+            <div><h3>Headquarters</h3><p>Oakstones 1 Bank, Financial District.<br />Correspondence by appointment.</p></div>
           </div>
         </div>
       </section>
@@ -602,9 +602,9 @@ const LandingPage: React.FC = () => {
         <div className="ob-wrap">
           <div className="ob-footer-top">
             <div className="ob-brand">
-              <img src={LOGO_SRC} alt="Oakstone 1 Bank seal" />
+              <img src={LOGO_SRC} alt="Oakstones 1 Bank seal" />
               <div>
-                <div className="ob-brand-name">Oakstone 1 Bank</div>
+                <div className="ob-brand-name">Oakstones 1 Bank</div>
                 <div className="ob-brand-sub">Established MCMXIV</div>
               </div>
             </div>
@@ -616,8 +616,8 @@ const LandingPage: React.FC = () => {
             </nav>
           </div>
           <div className="ob-footer-legal">
-            <span>© 2000–2026 Oakstone 1 Bank. All rights reserved.</span>
-            <span>Member, Federal Deposit Insurance Corporation · Equal Housing Lender</span>
+            <span>Â© 2000â€“2026 Oakstones 1 Bank. All rights reserved.</span>
+            <span>Member, Federal Deposit Insurance Corporation Â· Equal Housing Lender</span>
           </div>
         </div>
       </footer>

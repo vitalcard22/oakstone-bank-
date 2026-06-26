@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+﻿import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cardApi } from "../../services/api";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -28,7 +28,7 @@ export default function CardsPage() {
         <div key={c.id} className="card overflow-hidden">
           <div className={`bg-gradient-to-br ${GRAD[c.card_type]||"from-gray-700 to-gray-500"} p-6 text-white`}>
             <div className="flex justify-between items-start mb-8">
-              <span className="text-xs uppercase tracking-widest opacity-75">Oakstone</span>
+              <span className="text-xs uppercase tracking-widest opacity-75">Oakstones</span>
               <span className={c.status==="active" ? "badge-green" : "badge-red"}>{c.status}</span>
             </div>
             <p className="font-mono text-sm opacity-75 mb-1">**** **** **** {c.card_last4}</p>
@@ -50,7 +50,7 @@ export default function CardsPage() {
               </button>
             ) : c.frozen_by === "admin" ? (
               <div className="text-right max-w-[150px]">
-                <p className="text-xs font-medium text-red-600">Frozen by Oakstone</p>
+                <p className="text-xs font-medium text-red-600">Frozen by Oakstones</p>
                 <p className="text-[11px] text-gray-400 leading-tight">Contact support to unlock</p>
               </div>
             ) : (
