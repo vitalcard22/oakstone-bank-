@@ -138,7 +138,7 @@ export default function TransferReceiptPage() {
             {rows.map(([label, value]) => (
               <div key={label} className="flex justify-between gap-4 px-4 py-3">
                 <span className="text-sm text-gray-500">{label}</span>
-                <span className="text-sm text-gray-900 text-right font-medium break-all">{value}</span>
+                <span className="text-sm text-gray-900 text-right font-medium break-words">{value}</span>
               </div>
             ))}
           </div>
