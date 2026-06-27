@@ -22,4 +22,15 @@ r.post('/admin/fixed-deposits/:id/payout', requireAdmin, c.adminPayoutFixedDepos
 r.post('/admin/fixed-deposits/:id/reject', requireAdmin,
   body('reason').notEmpty(), validate, c.adminRejectFixedDeposit);
 
+// ── savings goals (user) ──
+r.get('/savings-goals', c.listSavingsGoals);
+r.post('/savings-goals',
+  body('name').notEmpty(),
+  body('targetAmount').isFloat({ min: 0.01 }),
+  body('accountId').notEmpty(),
+  validate, c.createSavingsGoal);
+r.post('/savings-goals/:id/contribute', body('amount').isFloat({ min: 0.01 }), validate, c.contributeSavingsGoal);
+r.post('/savings-goals/:id/withdraw', body('amount').isFloat({ min: 0.01 }), validate, c.withdrawSavingsGoal);
+r.delete('/savings-goals/:id', c.deleteSavingsGoal);
+
 export default r;

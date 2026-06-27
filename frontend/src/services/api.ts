@@ -146,4 +146,9 @@ export const adminApi = {
 export const wealthApi = {
   fixedDeposits: () => api.get('/wealth/fixed-deposits'),
   applyFixedDeposit: (data: any) => api.post('/wealth/fixed-deposits', data),
+  savingsGoals: () => api.get('/wealth/savings-goals'),
+  createSavingsGoal: (data: any) => api.post('/wealth/savings-goals', data),
+  contributeSavingsGoal: (id: string, amount: number) => api.post(`/wealth/savings-goals/${id}/contribute`, { amount }),
+  withdrawSavingsGoal: (id: string, amount: number) => api.post(`/wealth/savings-goals/${id}/withdraw`, { amount }),
+  deleteSavingsGoal: (id: string) => api.delete(`/wealth/savings-goals/${id}`),
 };

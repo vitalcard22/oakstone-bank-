@@ -232,3 +232,168 @@ export async function adminRejectFixedDeposit(req: Request, res: Response, next:
     res.json({ message: 'Fixed deposit rejected' });
   } catch (e) { next(e); }
 }
+
+// ═══════════════════════ SAVINGS GOALS ═══════════════════════
+
+// GET /wealth/savings-goals
+export async function listSavingsGoals(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const { rows } = await getDb().query(
+      `SELECT g.id, g.name, g.icon, g.color, g.target_amount, g.saved_amount,
+              g.target_date, g.status, g.created_at, a.account_number
+       FROM savings_goals g
+       JOIN accounts a ON a.id = g.account_id
+       WHERE g.user_id = $1
+       ORDER BY g.created_at DESC`,
+      [userId]
+    );
+    res.json(rows);
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/savings-goals   { name, icon, color, targetAmount, targetDate, accountId }
+export async function createSavingsGoal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const { name, icon, color, targetAmount, targetDate, accountId } = req.body;
+    const target = parseFloat(targetAmount);
+
+    if (!name || !name.trim()) throw new AppError('Goal name is required', 400);
+    if (!accountId) throw new AppError('Please choose a linked account', 400);
+    if (isNaN(target) || target <= 0) throw new AppError('Enter a valid target amount', 400);
+
+    const { rows: [acct] } = await getDb().query(
+      'SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [accountId, userId]
+    );
+    if (!acct) throw new AppError('Linked account not found', 404);
+
+    const { rows: [g] } = await getDb().query(
+      `INSERT INTO savings_goals (user_id, account_id, name, icon, color, target_amount, saved_amount, target_date, status)
+       VALUES ($1,$2,$3,$4,$5,$6,0,$7,'active') RETURNING id`,
+      [userId, accountId, name.trim(), icon || '🎯', color || 'bg-emerald-500', target, targetDate || null]
+    );
+    res.status(201).json({ id: g.id, message: 'Savings goal created' });
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/savings-goals/:id/contribute   { amount }
+export async function contributeSavingsGoal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+    const amt = parseFloat(req.body.amount);
+    if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
+    await client.query('BEGIN');
+
+    const { rows: [g] } = await client.query(
+      'SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId]
+    );
+    if (!g) throw new AppError('Goal not found', 404);
+
+    const { rows: [acct] } = await client.query(
+      'SELECT available_balance FROM accounts WHERE id=$1 FOR UPDATE', [g.account_id]
+    );
+    if (parseFloat(acct.available_balance) < amt) throw new AppError('Insufficient available balance', 400);
+
+    await client.query(
+      'UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2',
+      [amt, g.account_id]
+    );
+    const newSaved = +(parseFloat(g.saved_amount) + amt).toFixed(2);
+    const completed = newSaved >= parseFloat(g.target_amount);
+    await client.query(
+      `UPDATE savings_goals SET saved_amount=$1, status=$2 WHERE id=$3`,
+      [newSaved, completed ? 'completed' : 'active', id]
+    );
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, from_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'withdrawal','completed',$4,$5,$6,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), g.account_id, amt, `Savings goal: ${g.name}`,
+       JSON.stringify({ product: 'savings_goal', savingsGoalId: id })]
+    );
+    await client.query('COMMIT');
+
+    if (completed) await notify(userId, 'Goal reached! 🎉', `You've fully funded "${g.name}" (${money(parseFloat(g.target_amount))}).`);
+    res.json({ message: 'Contribution added', saved: newSaved, completed });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
+
+// POST /wealth/savings-goals/:id/withdraw   { amount }
+export async function withdrawSavingsGoal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+    const amt = parseFloat(req.body.amount);
+    if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
+    await client.query('BEGIN');
+
+    const { rows: [g] } = await client.query(
+      'SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId]
+    );
+    if (!g) throw new AppError('Goal not found', 404);
+    if (parseFloat(g.saved_amount) < amt) throw new AppError('You cannot withdraw more than you have saved', 400);
+
+    await client.query(
+      'UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2',
+      [amt, g.account_id]
+    );
+    const newSaved = +(parseFloat(g.saved_amount) - amt).toFixed(2);
+    const status = newSaved >= parseFloat(g.target_amount) ? 'completed' : 'active';
+    await client.query('UPDATE savings_goals SET saved_amount=$1, status=$2 WHERE id=$3', [newSaved, status, id]);
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'deposit','completed',$4,$5,$6,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), g.account_id, amt, `Savings goal withdrawal: ${g.name}`,
+       JSON.stringify({ product: 'savings_goal', savingsGoalId: id })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Withdrawn to your account', saved: newSaved });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
+
+// DELETE /wealth/savings-goals/:id  — returns any saved funds, then removes the goal
+export async function deleteSavingsGoal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+    await client.query('BEGIN');
+
+    const { rows: [g] } = await client.query(
+      'SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId]
+    );
+    if (!g) throw new AppError('Goal not found', 404);
+
+    const saved = parseFloat(g.saved_amount);
+    if (saved > 0) {
+      await client.query(
+        'UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2',
+        [saved, g.account_id]
+      );
+      await client.query(
+        `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+         VALUES ($1,$2,$3,'deposit','completed',$4,$5,$6,NOW(),NOW(),NOW())`,
+        [uuid(), generateRef(), g.account_id, saved, `Savings goal closed: ${g.name}`,
+         JSON.stringify({ product: 'savings_goal', savingsGoalId: id })]
+      );
+    }
+    await client.query('DELETE FROM savings_goals WHERE id=$1', [id]);
+    await client.query('COMMIT');
+    res.json({ message: 'Goal closed', returned: saved });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
