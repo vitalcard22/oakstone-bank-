@@ -32,7 +32,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {label:'System status',    value:'Operational', dot:'bg-green-400'},
           {label:'Security',         value:'Protected',   dot:'bg-green-400'},
@@ -49,10 +49,10 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 bg-navy-600 rounded-xl p-6 text-white">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-navy-600 rounded-xl p-6 text-white">
           <p className="text-xs uppercase tracking-widest text-white/50 mb-1">Total portfolio</p>
-          <p className="text-4xl font-mono font-bold mb-4">{fmt(total)}</p>
+          <p className="text-3xl sm:text-4xl font-mono font-bold mb-4 break-words">{fmt(total)}</p>
           <div className="grid grid-cols-2 gap-3">
             {accounts?.map((a: any) => (
               <div key={a.id} className="bg-white/5 rounded-lg p-3">
@@ -98,7 +98,7 @@ export default function DashboardPage() {
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card p-5">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Live activity</p>
           <div className="space-y-2 max-h-52 overflow-y-auto">
