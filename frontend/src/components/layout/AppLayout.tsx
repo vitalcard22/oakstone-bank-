@@ -25,8 +25,8 @@ const NAV = [
 const WEALTH_NAV = [
   { to: '/wealth', label: 'Wealth Hub', Icon: TrendingUp },
   { to: '/investment', label: 'Investment', Icon: TrendingUp },
-  { to: '/pension', label: 'Pension (SIPP)', Icon: Landmark },
-  { to: '/isa', label: 'ISA', Icon: PiggyBank },
+  { to: '/pension', label: '401(k)', Icon: Landmark },
+  { to: '/isa', label: 'Roth IRA', Icon: PiggyBank },
   { to: '/fixed-deposit', label: 'Fixed Deposit', Icon: Lock },
   { to: '/savings-goals', label: 'Savings Goals', Icon: Target },
 ];

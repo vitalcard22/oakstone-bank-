@@ -151,4 +151,7 @@ export const wealthApi = {
   contributeSavingsGoal: (id: string, amount: number) => api.post(`/wealth/savings-goals/${id}/contribute`, { amount }),
   withdrawSavingsGoal: (id: string, amount: number) => api.post(`/wealth/savings-goals/${id}/withdraw`, { amount }),
   deleteSavingsGoal: (id: string) => api.delete(`/wealth/savings-goals/${id}`),
+  isa: () => api.get('/wealth/isa'),
+  contributeIsa: (data: any) => api.post('/wealth/isa/contribute', data),
+  withdrawIsa: (amount: number) => api.post('/wealth/isa/withdraw', { amount }),
 };

@@ -33,4 +33,9 @@ r.post('/savings-goals/:id/contribute', body('amount').isFloat({ min: 0.01 }), v
 r.post('/savings-goals/:id/withdraw', body('amount').isFloat({ min: 0.01 }), validate, c.withdrawSavingsGoal);
 r.delete('/savings-goals/:id', c.deleteSavingsGoal);
 
+// ── ISA (user) ──
+r.get('/isa', c.getIsa);
+r.post('/isa/contribute', body('accountId').notEmpty(), body('amount').isFloat({ min: 0.01 }), validate, c.contributeIsa);
+r.post('/isa/withdraw', body('amount').isFloat({ min: 0.01 }), validate, c.withdrawIsa);
+
 export default r;

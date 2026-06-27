@@ -54,7 +54,7 @@ export default function FixedDepositPage() {
         <p className="text-amber-100 text-sm mb-6">Lock in your rate. Know exactly what you'll earn.</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: 'Best available rate', value: `${bestRate.toFixed(2)}% AER` },
+            { label: 'Best available rate', value: `${bestRate.toFixed(2)}% APY` },
             { label: 'Total deposited', value: fmt(totalActive) },
             { label: 'Interest at maturity', value: fmt(totalInterest) },
           ].map(s => (

@@ -19,8 +19,8 @@ const services = [
   { name: "Loans", body: "Apply for lending against a future you can see. Considered terms, reviewed by people, not algorithms alone." },
   { name: "Bill Pay", body: "Settle recurring obligations on schedule, with every payment monitored and accounted for." },
   { name: "Investment Account", body: "Build long-term wealth with access to stocks, ETFs, and bonds. Real-time portfolio tracking with no trading fees on ETFs." },
-  { name: "Pension (SIPP)", body: "A tax-advantaged way to save for retirement. Contributions benefit from tax relief, with flexible access from age 55." },
-  { name: "ISA", body: "Save up to $20,000 per year completely tax-free. Interest, dividends and gains sheltered — with flexible withdrawals anytime." },
+  { name: "401(k)", body: "A tax-advantaged way to save for retirement. Contributions lower your taxable income, with tax-deferred growth until retirement." },
+  { name: "Roth IRA", body: "Contribute up to $7,000 per year. Your earnings grow completely tax-free, and qualified withdrawals are tax-free too." },
   { name: "Fixed Deposit", body: "Lock in a guaranteed interest rate for 3 to 24 months. Know exactly what you will earn before you commit a single dollar." },
 ];
 

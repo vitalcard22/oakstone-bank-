@@ -24,13 +24,13 @@ const PRODUCTS = [
     icon: Landmark,
     color: 'bg-blue-50 text-blue-700',
     border: 'border-blue-200',
-    title: 'Pension (SIPP)',
-    subtitle: 'Self-Invested Personal Pension',
+    title: '401(k)',
+    subtitle: 'Employer retirement plan',
     description: 'A tax-advantaged way to save for retirement. Contributions benefit from tax relief at your marginal rate.',
     features: ['Tax relief on contributions', 'Withdraw from age 55', '25% tax-free lump sum', 'Min. contribution $50/mo'],
     rate: null,
     rateLabel: null,
-    cta: 'Open Pension Account',
+    cta: 'Open 401(k)',
     path: '/pension',
     badge: 'Tax advantaged',
   },
@@ -39,13 +39,13 @@ const PRODUCTS = [
     icon: PiggyBank,
     color: 'bg-purple-50 text-purple-700',
     border: 'border-purple-200',
-    title: 'ISA',
+    title: 'Roth IRA',
     subtitle: 'Individual Savings Account',
     description: 'Save up to $20,000 per year completely tax-free. Interest, dividends and gains are all sheltered.',
-    features: ['Tax-free interest & gains', '$20,000 annual allowance', 'Flexible withdrawals', 'FSCS protected'],
+    features: ['Tax-free growth', '$7,000 annual limit', 'Flexible withdrawals', 'FDIC insured'],
     rate: '4.85%',
-    rateLabel: 'AER (variable)',
-    cta: 'Open ISA',
+    rateLabel: 'APY (variable)',
+    cta: 'Open Roth IRA',
     path: '/isa',
     badge: 'Tax-free',
   },
@@ -57,9 +57,9 @@ const PRODUCTS = [
     title: 'Fixed Deposit',
     subtitle: 'Guaranteed returns, locked rate',
     description: 'Lock in a guaranteed interest rate for 3, 6, 12 or 24 months. Perfect for capital you won\'t need short-term.',
-    features: ['Guaranteed fixed rate', 'Terms from 3–24 months', 'FSCS protected up to $85k', 'Min. deposit $1,000'],
+    features: ['Guaranteed fixed rate', 'Terms from 3–24 months', 'FDIC insured up to $250k', 'Min. deposit $500'],
     rate: '5.20%',
-    rateLabel: 'AER (12 months)',
+    rateLabel: 'APY (12 months)',
     cta: 'Open Fixed Deposit',
     path: '/fixed-deposit',
     badge: 'Guaranteed rate',
@@ -137,7 +137,7 @@ export default function WealthHubPage() {
 
       {/* Disclaimer */}
       <p className="text-xs text-gray-400 mt-6 text-center">
-        Capital at risk. The value of investments can go down as well as up. FSCS protection applies to eligible deposits only.
+        Capital at risk. The value of investments can go down as well as up. FDIC insurance applies to eligible deposits only.
         Oakstones 1 Bank is a prototype — not a regulated financial institution.
       </p>
     </div>

@@ -14,8 +14,8 @@ const CONTRIBUTIONS = [
 const FAQ = [
   { q: 'When can I access my pension?', a: 'You can start withdrawing from age 55 (rising to 57 in 2028). Up to 25% can be taken as a tax-free lump sum.' },
   { q: 'How does tax relief work?', a: 'For every $80 you contribute, the government adds $20 in basic rate tax relief, making your effective contribution $100.' },
-  { q: 'Is my pension protected?', a: 'FSCS protection covers eligible deposits up to $85,000. This is a prototype system for demonstration purposes.' },
-  { q: 'Can I transfer an existing pension?', a: 'Yes. You can transfer pension pots from previous employers or personal pensions into your Oakstones SIPP.' },
+  { q: 'Is my pension protected?', a: 'FDIC insurance covers eligible deposits up to $250,000. This is a prototype system for demonstration purposes.' },
+  { q: 'Can I transfer an existing pension?', a: 'Yes. You can roll over a 401(k) or IRA from a previous employer into your Oakstones 401(k).' },
 ];
 
 export default function PensionPage() {
@@ -31,7 +31,7 @@ export default function PensionPage() {
       <div className="bg-gradient-to-br from-blue-800 to-blue-600 rounded-2xl p-8 text-white">
         <div className="flex items-center gap-2 mb-3">
           <Landmark size={18} className="text-blue-300" />
-          <span className="text-blue-300 text-sm font-medium">Self-Invested Personal Pension (SIPP)</span>
+          <span className="text-blue-300 text-sm font-medium">401(k) Retirement Plan</span>
         </div>
         <h1 className="text-3xl font-bold mb-1">Your Pension</h1>
         <p className="text-blue-200 text-sm mb-6">Tax-advantaged retirement savings</p>
@@ -115,7 +115,7 @@ export default function PensionPage() {
               {[
                 { icon: TrendingUp, label: 'Annual allowance', value: '$60,000' },
                 { icon: Calendar, label: 'Access from age', value: '55' },
-                { icon: ShieldCheck, label: 'FSCS protected', value: 'Up to $85k' },
+                { icon: ShieldCheck, label: 'FDIC insured', value: 'Up to $250k' },
               ].map(f => (
                 <div key={f.label} className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">

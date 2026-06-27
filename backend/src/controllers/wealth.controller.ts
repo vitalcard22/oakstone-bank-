@@ -397,3 +397,118 @@ export async function deleteSavingsGoal(req: Request, res: Response, next: NextF
     next(e);
   } finally { client.release(); }
 }
+
+// ═══════════════════════ ISA (tax-free savings) ═══════════════════════
+
+const ISA_ALLOWANCE = 7000; // annual Roth IRA contribution limit
+const ISA_RATE = 4.75;       // tax-free APY
+
+function currentTaxYear(): number { return new Date().getFullYear(); }
+
+async function loadIsa(userId: string): Promise<any> {
+  const { rows: [isa] } = await getDb().query('SELECT * FROM isa_accounts WHERE user_id=$1', [userId]);
+  if (!isa) return null;
+  // lazily reset the allowance when a new tax year starts
+  if (isa.tax_year !== currentTaxYear()) {
+    await getDb().query('UPDATE isa_accounts SET allowance_used=0, tax_year=$1 WHERE id=$2', [currentTaxYear(), isa.id]);
+    isa.allowance_used = 0; isa.tax_year = currentTaxYear();
+  }
+  return isa;
+}
+
+// GET /wealth/isa
+export async function getIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const isa = await loadIsa(userId);
+    res.json({
+      isa: isa ? {
+        balance: isa.balance, interest_rate: isa.interest_rate,
+        allowance_used: isa.allowance_used, account_number: null,
+      } : null,
+      config: { allowance: ISA_ALLOWANCE, rate: ISA_RATE, taxYear: currentTaxYear() },
+    });
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/isa/contribute   { accountId, amount }
+export async function contributeIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const { accountId } = req.body;
+    const amt = parseFloat(req.body.amount);
+    if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
+    if (!accountId) throw new AppError('Please choose a funding account', 400);
+    await client.query('BEGIN');
+
+    let { rows: [isa] } = await client.query('SELECT * FROM isa_accounts WHERE user_id=$1 FOR UPDATE', [userId]);
+    if (isa && isa.tax_year !== currentTaxYear()) {
+      await client.query('UPDATE isa_accounts SET allowance_used=0, tax_year=$1 WHERE id=$2', [currentTaxYear(), isa.id]);
+      isa.allowance_used = 0;
+    }
+    const used = isa ? parseFloat(isa.allowance_used) : 0;
+    if (used + amt > ISA_ALLOWANCE) {
+      throw new AppError(`That exceeds your annual Roth IRA limit. You have ${money(ISA_ALLOWANCE - used)} remaining.`, 400);
+    }
+
+    const { rows: [acct] } = await client.query('SELECT available_balance FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE', [accountId, userId]);
+    if (!acct) throw new AppError('Funding account not found', 404);
+    if (parseFloat(acct.available_balance) < amt) throw new AppError('Insufficient available balance', 400);
+
+    await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [amt, accountId]);
+
+    if (!isa) {
+      const r = await client.query(
+        `INSERT INTO isa_accounts (user_id, account_id, balance, interest_rate, allowance_used, tax_year)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [userId, accountId, amt, ISA_RATE, amt, currentTaxYear()]
+      );
+      isa = r.rows[0];
+    } else {
+      await client.query('UPDATE isa_accounts SET balance=balance+$1, allowance_used=allowance_used+$1, account_id=COALESCE(account_id,$2) WHERE id=$3', [amt, accountId, isa.id]);
+    }
+
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, from_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'withdrawal','completed',$4,'Roth IRA contribution',$5,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), accountId, amt, JSON.stringify({ product: 'isa' })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Added to your ISA' });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
+
+// POST /wealth/isa/withdraw   { amount }
+export async function withdrawIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const amt = parseFloat(req.body.amount);
+    if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
+    await client.query('BEGIN');
+
+    const { rows: [isa] } = await client.query('SELECT * FROM isa_accounts WHERE user_id=$1 FOR UPDATE', [userId]);
+    if (!isa) throw new AppError('No Roth IRA found', 404);
+    if (parseFloat(isa.balance) < amt) throw new AppError('You cannot withdraw more than your ISA balance', 400);
+    if (!isa.account_id) throw new AppError('No linked account to withdraw to', 400);
+
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, isa.account_id]);
+    await client.query('UPDATE isa_accounts SET balance=balance-$1 WHERE id=$2', [amt, isa.id]);
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'deposit','completed',$4,'Roth IRA withdrawal',$5,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), isa.account_id, amt, JSON.stringify({ product: 'isa' })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Withdrawn to your account' });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}

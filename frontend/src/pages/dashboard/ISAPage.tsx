@@ -1,121 +1,141 @@
-import { PiggyBank, ShieldCheck, TrendingUp, Info } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { wealthApi, accountApi } from '../../services/api';
+import toast from 'react-hot-toast';
+import { PiggyBank, ShieldCheck, TrendingUp, ArrowUpRight, ArrowDownLeft, Sparkles } from 'lucide-react';
 
-const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+const fmt = (n: any) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n || 0));
+
+// Circular allowance gauge
+function Gauge({ pct }: { pct: number }) {
+  const r = 52, c = 2 * Math.PI * r;
+  const off = c * (1 - Math.min(1, pct / 100));
+  return (
+    <svg viewBox="0 0 130 130" className="w-32 h-32 -rotate-90">
+      <circle cx="65" cy="65" r={r} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="11" />
+      <circle cx="65" cy="65" r={r} fill="none" stroke="white" strokeWidth="11" strokeLinecap="round"
+        strokeDasharray={c} strokeDashoffset={off} style={{ transition: 'stroke-dashoffset .7s ease' }} />
+      <text x="65" y="60" transform="rotate(90 65 65)" textAnchor="middle" className="fill-white font-bold" style={{ fontSize: 22 }}>{Math.round(pct)}%</text>
+      <text x="65" y="80" transform="rotate(90 65 65)" textAnchor="middle" className="fill-white/70" style={{ fontSize: 9 }}>allowance used</text>
+    </svg>
+  );
+}
 
 export default function ISAPage() {
-  const balance = 8750.00;
-  const annualAllowance = 20000;
-  const used = 8750;
-  const remaining = annualAllowance - used;
-  const interestEarned = 312.45;
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<'add' | 'withdraw'>('add');
+  const [accountId, setAccountId] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const { data, isLoading } = useQuery({ queryKey: ['isa'], queryFn: () => wealthApi.isa().then(r => r.data) });
+  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: () => accountApi.list().then(r => r.data) });
+
+  const balance = Number(data?.isa?.balance ?? 0);
+  const used = Number(data?.isa?.allowance_used ?? 0);
+  const allowance = Number(data?.config?.allowance ?? 20000);
+  const rate = Number(data?.isa?.interest_rate ?? data?.config?.rate ?? 4.75);
+  const remaining = Math.max(0, allowance - used);
+  const pct = (used / allowance) * 100;
+  const projectedInterest = balance * (rate / 100);
+  const amt = parseFloat(amount) || 0;
+
+  const refresh = () => { qc.invalidateQueries({ queryKey: ['isa'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); };
+
+  const addMut = useMutation({
+    mutationFn: () => wealthApi.contributeIsa({ accountId, amount: amt }),
+    onSuccess: () => { refresh(); setAmount(''); toast.success('Added to your ISA'); },
+    onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed'),
+  });
+  const wMut = useMutation({
+    mutationFn: () => wealthApi.withdrawIsa(amt),
+    onSuccess: () => { refresh(); setAmount(''); toast.success('Withdrawn to your account'); },
+    onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed'),
+  });
+
+  if (isLoading) return <p className="text-sm text-gray-400">Loading…</p>;
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-purple-800 to-purple-600 rounded-2xl p-8 text-white">
-        <div className="flex items-center gap-2 mb-3">
-          <PiggyBank size={18} className="text-purple-300" />
-          <span className="text-purple-300 text-sm font-medium">Individual Savings Account (ISA)</span>
-        </div>
-        <h1 className="text-4xl font-bold mb-1">{fmt(balance)}</h1>
-        <p className="text-purple-200 text-sm mb-6">Tax-free savings balance</p>
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: 'Interest earned (tax-free)', value: fmt(interestEarned) },
-            { label: 'Annual allowance used', value: fmt(used) },
-            { label: 'Remaining allowance', value: fmt(remaining) },
-          ].map(s => (
-            <div key={s.label} className="bg-white/10 rounded-xl p-3">
-              <p className="text-purple-200 text-xs mb-1">{s.label}</p>
-              <p className="text-white font-bold">{s.value}</p>
+      {/* Hero */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-purple-800 via-purple-700 to-indigo-600 rounded-2xl p-6 sm:p-8 text-white">
+        <Sparkles className="absolute -right-6 -top-6 text-white/10" size={140} />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 relative">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <PiggyBank size={18} className="text-purple-200" />
+              <span className="text-purple-200 text-sm font-medium">Roth IRA</span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white/15 px-2 py-0.5 rounded-full"><ShieldCheck size={11} />Tax-free</span>
             </div>
-          ))}
+            <p className="text-purple-200 text-xs uppercase tracking-wider mb-1">Your Roth IRA balance</p>
+            <h1 className="text-4xl sm:text-5xl font-bold mb-2 break-words">{fmt(balance)}</h1>
+            <p className="text-purple-100 text-sm flex items-center gap-1.5">
+              <TrendingUp size={14} /> {rate.toFixed(2)}% APY · earns about <span className="font-semibold">{fmt(projectedInterest)}</span>/yr tax-free
+            </p>
+          </div>
+          <div className="flex-shrink-0 self-center text-center">
+            <Gauge pct={pct} />
+            <p className="text-purple-200 text-xs mt-1">{fmt(remaining)} left this year</p>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-6">
-          {/* Allowance progress */}
-          <div className="card p-6">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="font-semibold text-gray-900">Annual ISA allowance</h2>
-              <span className="text-sm text-gray-500">{fmt(used)} of {fmt(annualAllowance)}</span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
-              <div className="h-full bg-purple-600 rounded-full transition-all" style={{ width: `${(used / annualAllowance) * 100}%` }} />
-            </div>
-            <p className="text-xs text-gray-400">You have {fmt(remaining)} remaining in your {new Date().getFullYear()}/{new Date().getFullYear() + 1} ISA allowance.</p>
+      {/* Stat strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {[
+          { label: 'Annual allowance', value: fmt(allowance), sub: `Tax year ${data?.config?.taxYear ?? ''}` },
+          { label: 'Used this year', value: fmt(used), sub: `${Math.round(pct)}% of allowance` },
+          { label: 'Remaining', value: fmt(remaining), sub: 'Available to add' },
+        ].map(s => (
+          <div key={s.label} className="card p-4">
+            <p className="text-xs text-gray-400 mb-1">{s.label}</p>
+            <p className="text-lg font-bold text-gray-900 break-words">{s.value}</p>
+            <p className="text-[11px] text-gray-400">{s.sub}</p>
           </div>
+        ))}
+      </div>
 
-          {/* Deposit form */}
-          <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Add to ISA</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="label">Deposit amount</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                  <input type="number" className="input pl-7" placeholder="0.00" max={remaining} />
-                </div>
-                <p className="text-xs text-purple-600 mt-1">Maximum deposit: {fmt(remaining)} (remaining allowance)</p>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-3 flex gap-2">
-                <Info size={14} className="text-purple-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-purple-700">All interest earned in your ISA is completely tax-free. No need to declare it on your tax return.</p>
-              </div>
-              <button className="w-full bg-purple-700 hover:bg-purple-800 text-white py-3 rounded-lg text-sm font-medium transition-colors">
-                Deposit to ISA
-              </button>
-            </div>
-          </div>
+      {/* Add / withdraw */}
+      <div className="card p-6 max-w-xl">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-5">
+          <button onClick={() => setMode('add')} className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2 rounded-md transition-colors ${mode === 'add' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500'}`}><ArrowUpRight size={15} />Add money</button>
+          <button onClick={() => setMode('withdraw')} className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2 rounded-md transition-colors ${mode === 'withdraw' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500'}`}><ArrowDownLeft size={15} />Withdraw</button>
         </div>
 
-        <div className="space-y-4">
-          <div className="card p-5">
-            <h3 className="font-semibold text-gray-900 mb-3 text-sm">ISA details</h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Interest rate', value: '4.85% AER' },
-                { label: 'Rate type', value: 'Variable' },
-                { label: 'Withdrawals', value: 'Flexible' },
-                { label: 'FSCS protected', value: 'Yes — up to $85k' },
-                { label: 'Account type', value: 'Cash ISA' },
-              ].map(d => (
-                <div key={d.label} className="flex justify-between text-sm border-b border-gray-50 pb-2 last:border-0">
-                  <span className="text-gray-400">{d.label}</span>
-                  <span className="font-medium text-gray-900">{d.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        {mode === 'add' && (
+          <>
+            <label className="block text-sm font-medium text-gray-700 mb-1">From account</label>
+            <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input w-full mb-4">
+              <option value="">Select an account…</option>
+              {accounts.map((a: any) => <option key={a.id} value={a.id}>{a.account_type} ••••{String(a.account_number).slice(-4)} — {fmt(a.available_balance)}</option>)}
+            </select>
+          </>
+        )}
 
-          <div className="card p-5 bg-gradient-to-b from-purple-50 to-white">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp size={16} className="text-purple-600" />
-              <h3 className="font-semibold text-gray-900 text-sm">Projected growth</h3>
-            </div>
-            <div className="space-y-2">
-              {[
-                { period: '1 year', value: '$9,174' },
-                { period: '3 years', value: '$10,084' },
-                { period: '5 years', value: '$11,078' },
-              ].map(p => (
-                <div key={p.period} className="flex justify-between text-sm">
-                  <span className="text-gray-400">{p.period}</span>
-                  <span className="font-semibold text-purple-700">{p.value}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-gray-400 mt-3">Based on current 4.85% AER. Rate may change.</p>
-          </div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+        <input type="text" inputMode="decimal" value={amount} placeholder="0.00"
+          onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, ''))}
+          className="input w-full mb-2" />
+        {mode === 'add'
+          ? <p className="text-xs text-gray-400 mb-4">{fmt(remaining)} of your allowance remaining this tax year.</p>
+          : <p className="text-xs text-gray-400 mb-4">{fmt(balance)} available to withdraw.</p>}
 
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex gap-2">
-            <ShieldCheck size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs text-green-800 font-semibold mb-1">FSCS Protected</p>
-              <p className="text-xs text-green-700">Your ISA is protected up to $85,000 per person.</p>
-            </div>
-          </div>
-        </div>
+        {mode === 'add' ? (
+          <button onClick={() => { if (!accountId) { toast.error('Choose an account'); return; } if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > remaining) { toast.error('Exceeds your remaining allowance'); return; } addMut.mutate(); }}
+            disabled={addMut.isPending}
+            className="btn-primary w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-50">
+            {addMut.isPending ? 'Adding…' : 'Add to Roth IRA'}
+          </button>
+        ) : (
+          <button onClick={() => { if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > balance) { toast.error('More than your ISA balance'); return; } wMut.mutate(); }}
+            disabled={wMut.isPending}
+            className="btn-primary w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-50">
+            {wMut.isPending ? 'Withdrawing…' : 'Withdraw from Roth IRA'}
+          </button>
+        )}
+        <p className="text-xs text-gray-400 mt-3 flex items-start gap-1.5">
+          <ShieldCheck size={13} className="flex-shrink-0 mt-0.5 text-purple-600" />
+          Earnings in your Roth IRA grow tax-free. You can contribute up to {fmt(allowance)} each tax year.
+        </p>
       </div>
     </div>
   );
