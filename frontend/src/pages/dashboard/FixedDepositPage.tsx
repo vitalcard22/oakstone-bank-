@@ -10,7 +10,7 @@ const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { mo
 export default function FixedDepositPage() {
   const qc = useQueryClient();
   const [accountId, setAccountId] = useState('');
-  const [amount, setAmount] = useState(5000);
+  const [amount, setAmount] = useState('');
   const [termMonths, setTermMonths] = useState(12);
 
   const { data, isLoading } = useQuery({ queryKey: ['fixed-deposits'], queryFn: () => wealthApi.fixedDeposits().then(r => r.data) });
@@ -20,12 +20,13 @@ export default function FixedDepositPage() {
   const minDeposit: number = data?.minDeposit ?? 500;
   const deposits: any[] = data?.deposits ?? [];
 
+  const amt = parseFloat(amount) || 0;
   const selectedRate = terms.find(t => t.months === termMonths)?.rate ?? 0;
-  const projectedInterest = amount * (selectedRate / 100) * (termMonths / 12);
-  const projectedValue = amount + projectedInterest;
+  const projectedInterest = amt * (selectedRate / 100) * (termMonths / 12);
+  const projectedValue = amt + projectedInterest;
 
   const applyMut = useMutation({
-    mutationFn: () => wealthApi.applyFixedDeposit({ accountId, principal: amount, termMonths }),
+    mutationFn: () => wealthApi.applyFixedDeposit({ accountId, principal: amt, termMonths }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['fixed-deposits'] }); toast.success('Application submitted for review'); },
     onError: (e: any) => toast.error(e.response?.data?.error ?? 'Could not submit application'),
   });
@@ -82,7 +83,11 @@ export default function FixedDepositPage() {
             </select>
 
             <label className="block text-sm font-medium text-gray-700 mb-1">Amount (min {fmt(minDeposit)})</label>
-            <input type="number" value={amount} min={minDeposit} onChange={e => setAmount(Number(e.target.value))} className="input w-full mb-4" />
+            <input
+              type="text" inputMode="decimal" value={amount}
+              placeholder={`Enter amount (min ${fmt(minDeposit)})`}
+              onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, ''))}
+              className="input w-full mb-4" />
 
             <label className="block text-sm font-medium text-gray-700 mb-2">Term</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
@@ -101,9 +106,13 @@ export default function FixedDepositPage() {
             </div>
 
             <button
-              onClick={() => { if (!accountId) { toast.error('Choose a funding account'); return; } applyMut.mutate(); }}
-              disabled={applyMut.isPending}
-              className="btn-primary w-full bg-amber-600 hover:bg-amber-700">
+              onClick={() => {
+                if (!accountId) { toast.error('Choose a funding account'); return; }
+                if (amt < minDeposit) { toast.error(`Minimum deposit is ${fmt(minDeposit)}`); return; }
+                applyMut.mutate();
+              }}
+              disabled={applyMut.isPending || !accountId || amt < minDeposit}
+              className="btn-primary w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
               {applyMut.isPending ? 'Submitting…' : 'Submit application'}
             </button>
             <p className="text-xs text-gray-400 mt-3 flex items-start gap-1.5">
