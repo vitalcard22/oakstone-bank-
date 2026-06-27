@@ -38,6 +38,7 @@ r.post('/wire',
   body('amount').isFloat({ min: 100 }),
   validate, c.wireTransfer);
 
+r.get('/history', c.getTransactionHistory);
 r.get('/:id', c.getTransaction);
 
 export default r;

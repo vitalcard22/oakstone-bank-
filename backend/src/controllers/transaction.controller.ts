@@ -7,6 +7,22 @@ import { auditLog } from '../utils/audit';
 import { runFraudCheck } from '../services/fraud';
 import { emitToUser, emitAdmin } from '../services/websocket';
 
+// Persist an in-app notification (non-fatal — never blocks the transaction).
+const fmtMoney = (n: number) =>
+  `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+async function notify(userId: string, title: string, body: string): Promise<void> {
+  if (!userId) return;
+  try {
+    await getDb().query(
+      `INSERT INTO notifications (user_id, title, body) VALUES ($1,$2,$3)`,
+      [userId, title, body]
+    );
+  } catch (e) {
+    console.error('[notify] failed:', e);
+  }
+}
+
 // Shared check: user must have at least one approved (non-rejected, non-pending) credit card
 // before they're allowed to send money out. They can still receive money regardless.
 async function ensureCanSendMoney(userId: string): Promise<void> {
@@ -133,6 +149,7 @@ export async function internalTransfer(req: Request, res: Response, next: NextFu
 
     await auditLog({ actorId: userId, action: 'transaction.transfer', entityId: txId });
     emitToUser(userId, 'transaction', { type: 'transfer', amount: amt, refId, status: 'completed' });
+    await notify(userId, 'Transfer sent', `You sent ${fmtMoney(amt)} to account ****${String(toAccountNumber).slice(-4)}.`);
 
     res.status(201).json({ transactionId: txId, referenceId: refId, status: 'completed' });
   } catch (e) {
@@ -205,6 +222,8 @@ export async function zelleTransfer(req: Request, res: Response, next: NextFunct
 
     emitToUser(userId, 'transaction', { type: 'zelle_sent', amount: amt, refId });
     emitToUser(recipient.recipient_id, 'transaction', { type: 'zelle_received', amount: amt, refId });
+    await notify(userId, 'Zelle sent', `You sent ${fmtMoney(amt)} via Zelle to ${identifier}.`);
+    await notify(recipient.recipient_id, 'Money received', `You received ${fmtMoney(amt)} via Zelle.`);
 
     res.status(201).json({ transactionId: txId, referenceId: refId, status: 'completed' });
   } catch (e) {
@@ -270,6 +289,7 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
 
     await auditLog({ actorId: userId, action: 'transaction.ach', entityId: txId });
     emitToUser(userId, 'transaction', { type: 'ach', amount: amt, refId, status: 'completed' });
+    await notify(userId, 'ACH transfer', isOutbound ? `You sent ${fmtMoney(amt)} via ACH.` : `You received ${fmtMoney(amt)} via ACH.`);
 
     res.status(201).json({
       transactionId: txId,
@@ -345,6 +365,7 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
 
     await auditLog({ actorId: userId, action: 'transaction.wire', entityId: txId });
     emitToUser(userId, 'transaction', { type: 'wire', amount: amt, refId, status: 'completed' });
+    await notify(userId, 'Wire sent', `You sent ${fmtMoney(amt)} via wire to ${recipient?.name ?? 'recipient'}.`);
 
     res.status(201).json({ transactionId: txId, referenceId: refId, status: 'completed' });
   } catch (e) {
@@ -356,6 +377,131 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
 }
 
 // GET /transactions/:id
+// Signed effect of a transaction on a specific account's balance.
+function parseMeta(m: any): any {
+  if (!m) return {};
+  if (typeof m === 'string') { try { return JSON.parse(m); } catch { return {}; } }
+  return m;
+}
+
+function txEffect(t: any, accountId: string): number {
+  const amt = parseFloat(t.amount);
+  if (t.to_account_id === accountId) return amt;            // money in
+  if (t.from_account_id === accountId) {
+    const meta = parseMeta(t.metadata);
+    if (t.tx_type === 'ach' && meta?.direction === 'credit') return amt; // inbound ACH
+    return -amt;                                            // money out
+  }
+  return 0;
+}
+
+// Who the money went to / came from, per transaction type.
+function counterparty(t: any, outgoing: boolean): { name: string | null; account: string | null } {
+  const m = parseMeta(t.metadata);
+  switch (t.tx_type) {
+    case 'wire':       return { name: m?.recipient?.name ?? null,  account: m?.recipient?.accountNumber ?? null };
+    case 'ach':        return { name: m?.accountHolderName ?? null, account: m?.externalAccountNumber ?? null };
+    case 'deposit':    return { name: m?.senderName ?? null,        account: m?.externalAccountNumber ?? null };
+    case 'withdrawal': return { name: m?.recipientName ?? null,     account: m?.externalAccountNumber ?? null };
+    case 'zelle':
+    case 'transfer':
+      return outgoing
+        ? { name: (t.to_owner || '').trim() || null,   account: t.to_account_number ?? null }
+        : { name: (t.from_owner || '').trim() || null, account: t.from_account_number ?? null };
+    case 'fee':        return { name: 'Oakstones 1 Bank', account: null };
+    default:           return { name: null, account: null };
+  }
+}
+
+// GET /transactions/history — full history with optional account/type/date filters.
+// When a single account is selected, a running balance is computed for each row.
+export async function getTransactionHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const accountId = (req.query.accountId as string) || '';
+    const type = (req.query.type as string) || '';
+    const days = parseInt((req.query.days as string) || '0', 10);
+
+    const { rows: accts } = await getDb().query(
+      `SELECT id, account_number, account_type, balance
+       FROM accounts WHERE user_id=$1 ORDER BY opened_at ASC NULLS LAST`,
+      [userId]
+    );
+    const accountList = accts.map((a: any) => ({
+      id: a.id,
+      label: `${a.account_type} ****${String(a.account_number).slice(-4)}`,
+    }));
+
+    if (accts.length === 0) { res.json({ accounts: [], transactions: [] }); return; }
+    if (accountId && !accts.some((a: any) => a.id === accountId)) throw new AppError('Account not found', 404);
+
+    const where = accountId
+      ? '(t.from_account_id=$2 OR t.to_account_id=$2)'
+      : `(t.from_account_id IN (SELECT id FROM accounts WHERE user_id=$1)
+          OR t.to_account_id IN (SELECT id FROM accounts WHERE user_id=$1))`;
+    const params: any[] = accountId ? [userId, accountId] : [userId];
+
+    const { rows: txs } = await getDb().query(
+      `SELECT t.id, t.reference_id, t.tx_type, t.status, t.amount, t.fee,
+              t.description, t.created_at, t.metadata,
+              t.from_account_id, t.to_account_id,
+              fa.account_number AS from_account_number,
+              ta.account_number AS to_account_number,
+              TRIM(COALESCE(fu.first_name,'') || ' ' || COALESCE(fu.last_name,'')) AS from_owner,
+              TRIM(COALESCE(tu.first_name,'') || ' ' || COALESCE(tu.last_name,'')) AS to_owner
+       FROM transactions t
+       LEFT JOIN accounts fa ON fa.id = t.from_account_id
+       LEFT JOIN accounts ta ON ta.id = t.to_account_id
+       LEFT JOIN users   fu ON fu.id::text = fa.user_id::text
+       LEFT JOIN users   tu ON tu.id::text = ta.user_id::text
+       WHERE ${where}
+       ORDER BY t.created_at DESC`,
+      params
+    );
+
+    // Direction + running balance (running balance only meaningful for a single account).
+    if (accountId) {
+      const acct = accts.find((a: any) => a.id === accountId);
+      let running = parseFloat(acct.balance);
+      for (const t of txs) { // newest -> oldest
+        const eff = txEffect(t, accountId);
+        t.outgoing = eff < 0;
+        if (String(t.status) === 'completed') {
+          t.balance_after = running;
+          running = running - eff;
+        } else {
+          t.balance_after = null;
+        }
+      }
+    } else {
+      const myIds = new Set(accts.map((a: any) => a.id));
+      for (const t of txs) {
+        t.outgoing = txEffect(t, t.from_account_id && myIds.has(t.from_account_id) ? t.from_account_id : t.to_account_id) < 0;
+        t.balance_after = null;
+      }
+    }
+
+    let out = txs;
+    for (const t of out) {
+      const cp = counterparty(t, t.outgoing);
+      t.counterparty_name = cp.name;
+      t.counterparty_account = cp.account;
+    }
+    if (type) out = out.filter((t: any) => t.tx_type === type);
+    if (days > 0) {
+      const cutoff = Date.now() - days * 86400000;
+      out = out.filter((t: any) => new Date(t.created_at).getTime() >= cutoff);
+    }
+
+    // Strip internal fields from the response.
+    out = out.map(({ metadata, from_owner, to_owner, ...rest }: any) => rest);
+
+    res.json({ accounts: accountList, transactions: out });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function getTransaction(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = (req as any).user.id;

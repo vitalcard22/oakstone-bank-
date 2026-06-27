@@ -86,6 +86,7 @@ export const txApi = {
   config: () => api.get('/transactions/config'),
   zelleLookup: (identifier: string) => api.get('/transactions/zelle/lookup', { params: { identifier } }),
   get: (id: string) => api.get(`/transactions/${id}`),
+  history: (params?: any) => api.get('/transactions/history', { params }),
 };
 
 // Cards

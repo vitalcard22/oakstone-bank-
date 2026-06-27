@@ -24,6 +24,7 @@ import AccountsPage from './pages/dashboard/AccountsPage';
 import AccountDetailPage from './pages/dashboard/AccountDetailPage';
 import TransferPage from './pages/dashboard/TransferPage';
 import TransferReceiptPage from './pages/dashboard/TransferReceiptPage';
+import TransactionsPage from './pages/dashboard/TransactionsPage';
 import ZellePage from './pages/dashboard/ZellePage';
 import CardsPage from './pages/dashboard/CardsPage';
 import CardApplyPage from './pages/dashboard/CardApplyPage';
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="/accounts/:id" element={<AccountDetailPage />} />
             <Route path="/transfer" element={<TransferPage />} />
             <Route path="/transfer/receipt/:id" element={<TransferReceiptPage />} />
+            <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/zelle" element={<ZellePage />} />
             <Route path="/cards" element={<CardsPage />} />
             <Route path="/cards/apply" element={<CardApplyPage />} />

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Wallet, ArrowLeftRight, Zap,
   CreditCard, Landmark, Bell, User, LogOut, Shield,
   TrendingUp, PiggyBank, Lock, Target, ShieldCheck, Moon, Sun,
-  Menu, X,
+  Menu, X, Receipt,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/accounts', label: 'Accounts', Icon: Wallet },
   { to: '/transfer', label: 'Transfer', Icon: ArrowLeftRight },
+  { to: '/transactions', label: 'Transactions', Icon: Receipt },
   { to: '/zelle', label: 'Send money', Icon: Zap },
   { to: '/cards', label: 'Cards', Icon: CreditCard },
   { to: '/loans', label: 'Loans', Icon: Landmark },
