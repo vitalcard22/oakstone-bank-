@@ -2,6 +2,7 @@ import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { authApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import SessionTimeout from './SessionTimeout';
 import {
   LayoutDashboard, Users, ShieldCheck, DollarSign,
   CreditCard, Landmark, Activity, AlertTriangle, FileText,
@@ -29,14 +30,16 @@ export default function AdminLayout() {
   function handleLogout() {
     try { authApi.logout().catch(() => {}); } catch { /* ignore */ }
     logout();
-    navigate('/');
-    toast.success('Signed out');
+    navigate('/login', { replace: true });
+    toast('You have been signed out', { icon: '🔒' });
   }
 
   const closeDrawer = () => setOpen(false);
 
   return (
     <div className="min-h-screen md:flex bg-gray-50">
+
+      <SessionTimeout />
 
       {/* Mobile top bar */}
       <header className="md:hidden sticky top-0 z-30 flex items-center justify-between bg-navy-700 px-4 py-3">

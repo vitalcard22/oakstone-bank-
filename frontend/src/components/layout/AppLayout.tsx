@@ -1,6 +1,8 @@
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { authApi } from '../../services/api';
+import toast from 'react-hot-toast';
+import SessionTimeout from './SessionTimeout';
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Zap,
   CreditCard, Landmark, Bell, User, LogOut, Shield,
@@ -43,7 +45,8 @@ export default function AppLayout() {
   function handleLogout() {
     try { authApi.logout().catch(() => {}); } catch { }
     logout();
-    navigate('/');
+    navigate('/login', { replace: true });
+    toast('You have been signed out', { icon: '🔒' });
   }
 
   const closeDrawer = () => setOpen(false);
@@ -57,6 +60,8 @@ export default function AppLayout() {
 
   return (
     <div className={`min-h-screen md:flex ${dark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+
+      <SessionTimeout />
 
       {/* Mobile top bar */}
       <header className="md:hidden sticky top-0 z-30 flex items-center justify-between bg-emerald-900 px-4 py-3">
