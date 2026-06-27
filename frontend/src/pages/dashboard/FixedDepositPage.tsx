@@ -1,166 +1,145 @@
 import { useState } from 'react';
-import { Lock, Calendar, ShieldCheck, Info } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { wealthApi, accountApi } from '../../services/api';
+import toast from 'react-hot-toast';
+import { Lock, Calendar, Info, CheckCircle, Clock, XCircle } from 'lucide-react';
 
-const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-
-const TERMS = [
-  { months: 3, rate: 4.50, label: '3 months' },
-  { months: 6, rate: 4.85, label: '6 months' },
-  { months: 12, rate: 5.20, label: '12 months' },
-  { months: 24, rate: 5.45, label: '24 months' },
-];
-
-const ACTIVE_DEPOSITS = [
-  { amount: 5000, rate: 5.20, term: '12 months', maturity: 'Jun 2027', interest: 260, status: 'Active' },
-  { amount: 2000, rate: 4.85, term: '6 months', maturity: 'Sep 2026', interest: 48.50, status: 'Active' },
-];
+const fmt = (n: any) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n || 0));
+const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
 export default function FixedDepositPage() {
-  const [selectedTerm, setSelectedTerm] = useState(TERMS[2]);
+  const qc = useQueryClient();
+  const [accountId, setAccountId] = useState('');
   const [amount, setAmount] = useState(5000);
-  const projectedInterest = (amount * (selectedTerm.rate / 100) * (selectedTerm.months / 12));
+  const [termMonths, setTermMonths] = useState(12);
+
+  const { data, isLoading } = useQuery({ queryKey: ['fixed-deposits'], queryFn: () => wealthApi.fixedDeposits().then(r => r.data) });
+  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: () => accountApi.list().then(r => r.data) });
+
+  const terms: { months: number; rate: number }[] = data?.terms ?? [];
+  const minDeposit: number = data?.minDeposit ?? 500;
+  const deposits: any[] = data?.deposits ?? [];
+
+  const selectedRate = terms.find(t => t.months === termMonths)?.rate ?? 0;
+  const projectedInterest = amount * (selectedRate / 100) * (termMonths / 12);
+  const projectedValue = amount + projectedInterest;
+
+  const applyMut = useMutation({
+    mutationFn: () => wealthApi.applyFixedDeposit({ accountId, principal: amount, termMonths }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['fixed-deposits'] }); toast.success('Application submitted for review'); },
+    onError: (e: any) => toast.error(e.response?.data?.error ?? 'Could not submit application'),
+  });
+
+  const totalActive = deposits.filter(d => d.status === 'active').reduce((s, d) => s + Number(d.principal), 0);
+  const totalInterest = deposits.filter(d => d.status === 'active').reduce((s, d) => s + (Number(d.maturity_value) - Number(d.principal)), 0);
+  const bestRate = terms.length ? Math.max(...terms.map(t => t.rate)) : 0;
+
+  const statusPill = (s: string) =>
+    s === 'active' ? <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle size={12}/>Active</span>
+    : s === 'pending' ? <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"><Clock size={12}/>Under review</span>
+    : s === 'rejected' ? <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full"><XCircle size={12}/>Declined</span>
+    : s === 'matured' ? <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full"><CheckCircle size={12}/>Matured · paid out</span>
+    : <span className="text-xs text-gray-500">{s}</span>;
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-amber-700 to-amber-500 rounded-2xl p-8 text-white">
+      {/* Hero */}
+      <div className="bg-gradient-to-br from-amber-700 to-amber-500 rounded-2xl p-6 sm:p-8 text-white">
         <div className="flex items-center gap-2 mb-3">
           <Lock size={18} className="text-amber-200" />
           <span className="text-amber-200 text-sm font-medium">Fixed Deposit Account</span>
         </div>
-        <h1 className="text-3xl font-bold mb-1">Guaranteed returns</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-1">Guaranteed returns</h1>
         <p className="text-amber-100 text-sm mb-6">Lock in your rate. Know exactly what you'll earn.</p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: 'Best available rate', value: '5.45% AER' },
-            { label: 'Total deposited', value: fmt(7000) },
-            { label: 'Interest earning', value: fmt(308.50) },
+            { label: 'Best available rate', value: `${bestRate.toFixed(2)}% AER` },
+            { label: 'Total deposited', value: fmt(totalActive) },
+            { label: 'Interest at maturity', value: fmt(totalInterest) },
           ].map(s => (
             <div key={s.label} className="bg-white/10 rounded-xl p-3">
               <p className="text-amber-200 text-xs mb-1">{s.label}</p>
-              <p className="text-white font-bold">{s.value}</p>
+              <p className="text-white font-bold break-words">{s.value}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-6">
-          {/* New deposit form */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Apply form */}
+        <div className="lg:col-span-2 space-y-6">
           <div className="card p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Open a new fixed deposit</h2>
-            <div className="space-y-4">
-              {/* Term selection */}
-              <div>
-                <label className="label">Select term</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {TERMS.map(t => (
-                    <button
-                      key={t.months}
-                      onClick={() => setSelectedTerm(t)}
-                      className={`p-3 rounded-xl border-2 text-center transition-all ${selectedTerm.months === t.months ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-amber-200'}`}
-                    >
-                      <p className="text-xs text-gray-500 mb-1">{t.label}</p>
-                      <p className="font-bold text-amber-700">{t.rate}%</p>
-                      <p className="text-xs text-gray-400">AER</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Amount */}
-              <div>
-                <label className="label">Deposit amount</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                  <input
-                    type="number"
-                    className="input pl-7"
-                    value={amount}
-                    onChange={e => setAmount(Number(e.target.value))}
-                    min={1000}
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">Minimum deposit: $1,000</p>
-              </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fund from account</label>
+            <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input w-full mb-4">
+              <option value="">Select an account…</option>
+              {accounts.map((a: any) => (
+                <option key={a.id} value={a.id}>
+                  {a.account_type} ••••{String(a.account_number).slice(-4)} — {fmt(a.available_balance)} available
+                </option>
+              ))}
+            </select>
 
-              {/* Projected return */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-amber-800">Projected at maturity</span>
-                  <span className="text-lg font-bold text-amber-700">{fmt(amount + projectedInterest)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-amber-600">
-                  <span>Interest earned</span>
-                  <span>+{fmt(projectedInterest)}</span>
-                </div>
-              </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (min {fmt(minDeposit)})</label>
+            <input type="number" value={amount} min={minDeposit} onChange={e => setAmount(Number(e.target.value))} className="input w-full mb-4" />
 
-              <div className="flex gap-2">
-                <Info size={14} className="text-gray-400 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-gray-500">Early withdrawal is not permitted during the fixed term. At maturity, funds return to your main account automatically.</p>
-              </div>
-
-              <button className="w-full bg-amber-600 hover:bg-amber-700 text-white py-3 rounded-lg text-sm font-medium transition-colors">
-                Open fixed deposit — {selectedTerm.rate}% for {selectedTerm.label}
-              </button>
-            </div>
-          </div>
-
-          {/* Active deposits */}
-          <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Active deposits</h2>
-            <div className="space-y-3">
-              {ACTIVE_DEPOSITS.map((d, i) => (
-                <div key={i} className="border border-gray-100 rounded-xl p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">{fmt(d.amount)}</p>
-                      <p className="text-xs text-gray-400">{d.term} · {d.rate}% AER</p>
-                    </div>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">{d.status}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      <span className="text-gray-500">Matures: <span className="text-gray-900 font-medium">{d.maturity}</span></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Lock size={14} className="text-gray-400" />
-                      <span className="text-gray-500">Interest: <span className="text-green-600 font-medium">+{fmt(d.interest)}</span></span>
-                    </div>
-                  </div>
-                </div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Term</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+              {terms.map(t => (
+                <button key={t.months} type="button" onClick={() => setTermMonths(t.months)}
+                  className={`rounded-lg border p-3 text-center transition-colors ${termMonths === t.months ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <p className="text-sm font-semibold text-gray-900">{t.months} mo</p>
+                  <p className="text-xs text-amber-600 font-medium">{t.rate.toFixed(2)}%</p>
+                </button>
               ))}
             </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 mb-5 space-y-1">
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Projected interest</span><span className="font-medium text-gray-900">{fmt(projectedInterest)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Value at maturity</span><span className="font-bold text-amber-700">{fmt(projectedValue)}</span></div>
+            </div>
+
+            <button
+              onClick={() => { if (!accountId) { toast.error('Choose a funding account'); return; } applyMut.mutate(); }}
+              disabled={applyMut.isPending}
+              className="btn-primary w-full bg-amber-600 hover:bg-amber-700">
+              {applyMut.isPending ? 'Submitting…' : 'Submit application'}
+            </button>
+            <p className="text-xs text-gray-400 mt-3 flex items-start gap-1.5">
+              <Info size={13} className="flex-shrink-0 mt-0.5" />
+              Funds are debited only after an administrator approves your application. Until then your money stays available.
+            </p>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="card p-5">
-            <h3 className="font-semibold text-gray-900 mb-3 text-sm">Rate table</h3>
-            <div className="space-y-2">
-              {TERMS.map(t => (
-                <div key={t.months} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-                  <span className="text-sm text-gray-600">{t.label}</span>
-                  <span className="font-bold text-amber-700">{t.rate}%</span>
-                </div>
-              ))}
+        {/* My deposits */}
+        <div className="space-y-3">
+          <h2 className="font-semibold text-gray-900">Your deposits</h2>
+          {isLoading && <p className="text-sm text-gray-400">Loading…</p>}
+          {!isLoading && deposits.length === 0 && (
+            <div className="card p-5 text-center text-sm text-gray-400">No fixed deposits yet.</div>
+          )}
+          {deposits.map(d => (
+            <div key={d.id} className="card p-4">
+              <div className="flex justify-between items-start mb-2">
+                <p className="font-bold text-gray-900">{fmt(d.principal)}</p>
+                {statusPill(d.status)}
+              </div>
+              <div className="text-xs text-gray-500 space-y-1">
+                <p>{d.term_months} months @ {Number(d.interest_rate).toFixed(2)}%</p>
+                <p>From ••••{String(d.account_number).slice(-4)}</p>
+                {d.status === 'active' && (
+                  <>
+                    <p className="flex items-center gap-1"><Calendar size={11}/>Matures {fmtDate(d.maturity_date)}</p>
+                    <p className="text-amber-700 font-medium">Worth {fmt(d.maturity_value)} at maturity</p>
+                  </>
+                )}
+                {d.status === 'matured' && <p className="text-emerald-700 font-medium">Paid out {fmt(d.maturity_value)} to ••••{String(d.account_number).slice(-4)}</p>}
+                {d.status === 'rejected' && d.reject_reason && <p className="text-red-500 italic">{d.reject_reason}</p>}
+              </div>
             </div>
-            <p className="text-xs text-gray-400 mt-3">Rates correct as of today. Subject to change before account opening.</p>
-          </div>
-
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex gap-2">
-            <ShieldCheck size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs text-green-800 font-semibold mb-1">FSCS Protected</p>
-              <p className="text-xs text-green-700">Deposits protected up to $85,000 per person.</p>
-            </div>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-xs text-gray-500 font-semibold mb-2">Important information</p>
-            <p className="text-xs text-gray-400">Fixed deposits cannot be accessed early. Ensure you won't need these funds before the maturity date. This is a prototype system.</p>
-          </div>
+          ))}
         </div>
       </div>
     </div>

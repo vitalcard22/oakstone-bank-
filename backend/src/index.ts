@@ -16,6 +16,7 @@ import cardRoutes from './routes/card.routes';
 import loanRoutes from './routes/loan.routes';
 import notificationRoutes from './routes/notification.routes';
 import adminRoutes from './routes/admin.routes';
+import wealthRoutes from './routes/wealth.routes';
 async function bootstrap() {
 const app = express(); const http = createServer(app);
 app.use(cors({ origin: function(_o,cb){cb(null,true)}, credentials: true, methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization','Cookie'] }));
@@ -34,6 +35,7 @@ app.use('/api/v1/cards', cardRoutes);
 app.use('/api/v1/loans', loanRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/wealth', wealthRoutes);
 app.use(errorHandler);
 const PORT = Number(process.env.PORT ?? 4000);
 http.listen(PORT, '0.0.0.0', () => { console.log('[Oakstones] Ready on 0.0.0.0:' + PORT); initWebSocket(http); });

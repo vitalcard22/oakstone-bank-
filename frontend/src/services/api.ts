@@ -137,4 +137,13 @@ export const adminApi = {
   fraudAlerts: () => api.get('/admin/fraud-alerts'),
   resolveFraud: (id: string) => api.post(`/admin/fraud-alerts/${id}/resolve`),
   auditLog: () => api.get('/admin/audit-log'),
+  fixedDeposits: (status?: string) => api.get('/wealth/admin/fixed-deposits', { params: { status } }),
+  approveFixedDeposit: (id: string) => api.post(`/wealth/admin/fixed-deposits/${id}/approve`),
+  payoutFixedDeposit: (id: string) => api.post(`/wealth/admin/fixed-deposits/${id}/payout`),
+  rejectFixedDeposit: (id: string, reason: string) => api.post(`/wealth/admin/fixed-deposits/${id}/reject`, { reason }),
+};
+
+export const wealthApi = {
+  fixedDeposits: () => api.get('/wealth/fixed-deposits'),
+  applyFixedDeposit: (data: any) => api.post('/wealth/fixed-deposits', data),
 };
