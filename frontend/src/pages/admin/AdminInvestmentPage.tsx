@@ -14,6 +14,7 @@ export default function AdminInvestmentPage() {
   const wApproveMut = useMutation({ mutationFn: (id: string) => adminApi.approveInvestmentWithdrawal(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-investment-w'] }); toast.success('Sell executed and paid'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
   const wRejectMut = useMutation({ mutationFn: ({ id, reason }: { id: string; reason: string }) => adminApi.rejectInvestmentWithdrawal(id, reason), onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-investment-w'] }); toast.success('Rejected'); setWRejectingId(null); setWReason(''); }, onError: () => toast.error('Failed') });
   const fmt = (n: any) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n || 0));
+  const approveMut = useMutation({ mutationFn: (id: string) => adminApi.approveInvestment(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-investment'] }); toast.success('Approved'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
   const rejectMut = useMutation({ mutationFn: ({ id, reason }: { id: string; reason: string }) => adminApi.rejectInvestment(id, reason), onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-investment'] }); toast.success('Rejected'); setRejectingId(null); setReason(''); }, onError: () => toast.error('Failed') });
 
   const badge = (s: string) => s === 'pending' ? 'badge-amber' : s === 'active' ? 'badge-green' : s === 'rejected' ? 'badge-red' : 'badge-blue';
