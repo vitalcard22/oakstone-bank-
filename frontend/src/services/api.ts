@@ -144,6 +144,9 @@ export const adminApi = {
   retirementEnrollments: () => api.get('/wealth/admin/retirement'),
   approveRetirement: (id: string) => api.post(`/wealth/admin/retirement/${id}/approve`),
   rejectRetirement: (id: string, reason: string) => api.post(`/wealth/admin/retirement/${id}/reject`, { reason }),
+  investmentEnrollments: () => api.get('/wealth/admin/investment'),
+  approveInvestment: (id: string) => api.post(`/wealth/admin/investment/${id}/approve`),
+  rejectInvestment: (id: string, reason: string) => api.post(`/wealth/admin/investment/${id}/reject`, { reason }),
 };
 
 export const wealthApi = {
@@ -161,4 +164,8 @@ export const wealthApi = {
   enrollRetirement: (accountId: string) => api.post('/wealth/retirement/enroll', { accountId }),
   contributeRetirement: (amount: number) => api.post('/wealth/retirement/contribute', { amount }),
   withdrawRetirement: (amount: number) => api.post('/wealth/retirement/withdraw', { amount }),
+  investment: () => api.get('/wealth/investment'),
+  enrollInvestment: (accountId: string) => api.post('/wealth/investment/enroll', { accountId }),
+  buyInvestment: (symbol: string, shares: number) => api.post('/wealth/investment/buy', { symbol, shares }),
+  sellInvestment: (symbol: string, shares: number) => api.post('/wealth/investment/sell', { symbol, shares }),
 };

@@ -681,3 +681,210 @@ export async function adminRejectRetirement(req: Request, res: Response, next: N
     res.json({ message: 'Enrollment rejected' });
   } catch (e) { next(e); }
 }
+
+// ═══════════════════ INVESTMENT (live prices via Finnhub) ═══════════════════
+
+const INV_ASSETS = [
+  { symbol: 'SPY', name: 'S&P 500 ETF' },
+  { symbol: 'VTI', name: 'Total US Market ETF' },
+  { symbol: 'QQQ', name: 'Nasdaq 100 ETF' },
+  { symbol: 'BND', name: 'Total Bond Market ETF' },
+  { symbol: 'GLD', name: 'Gold ETF' },
+];
+const INV_FALLBACK: Record<string, number> = { SPY: 545, VTI: 270, QQQ: 470, BND: 73, GLD: 215 };
+const httpGet: any = (globalThis as any).fetch;
+
+let priceCache: { at: number; data: Record<string, any> } = { at: 0, data: {} };
+
+async function getQuotes(): Promise<Record<string, any>> {
+  const now = Date.now();
+  if (now - priceCache.at < 30000 && Object.keys(priceCache.data).length) return priceCache.data;
+  const key = process.env.FINNHUB_API_KEY;
+  const out: Record<string, any> = {};
+  await Promise.all(INV_ASSETS.map(async (a) => {
+    try {
+      if (!key || !httpGet) throw new Error('no key');
+      const r = await httpGet(`https://finnhub.io/api/v1/quote?symbol=${a.symbol}&token=${key}`);
+      const j: any = await r.json();
+      if (j && typeof j.c === 'number' && j.c > 0) {
+        out[a.symbol] = { price: j.c, change: j.d ?? 0, pct: j.dp ?? 0, live: true };
+      } else throw new Error('bad quote');
+    } catch {
+      const prev = priceCache.data[a.symbol]?.price ?? INV_FALLBACK[a.symbol];
+      out[a.symbol] = { price: prev, change: 0, pct: 0, live: false };
+    }
+  }));
+  priceCache = { at: now, data: out };
+  return out;
+}
+
+// GET /wealth/investment  (market view is open to everyone; holdings only if active)
+export async function getInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const prices = await getQuotes();
+    const { rows: [acct] } = await getDb().query('SELECT status, reject_reason FROM investment_accounts WHERE user_id=$1', [userId]);
+    let holdings: any[] = [];
+    if (acct && acct.status === 'active') {
+      const { rows } = await getDb().query('SELECT symbol, shares, avg_price FROM investment_holdings WHERE user_id=$1 AND shares > 0', [userId]);
+      holdings = rows.map((h: any) => {
+        const px = prices[h.symbol]?.price ?? INV_FALLBACK[h.symbol] ?? 0;
+        const value = Number(h.shares) * px;
+        const cost = Number(h.shares) * Number(h.avg_price);
+        return { symbol: h.symbol, shares: Number(h.shares), avg_price: Number(h.avg_price), price: px, value, gain: value - cost };
+      });
+    }
+    res.json({
+      account: acct ? { status: acct.status, reject_reason: acct.reject_reason } : null,
+      assets: INV_ASSETS, prices, holdings,
+    });
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/investment/enroll  { accountId }
+export async function enrollInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const { accountId } = req.body;
+    if (!accountId) throw new AppError('Please choose a funding account', 400);
+    const { rows: [acct] } = await getDb().query('SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [accountId, userId]);
+    if (!acct) throw new AppError('Account not found', 404);
+    const { rows: [existing] } = await getDb().query('SELECT * FROM investment_accounts WHERE user_id=$1', [userId]);
+    if (existing && (existing.status === 'pending' || existing.status === 'active')) {
+      throw new AppError(existing.status === 'active' ? 'You are already enrolled' : 'Your enrollment is already under review', 400);
+    }
+    if (existing) {
+      await getDb().query(`UPDATE investment_accounts SET status='pending', account_id=$1, reject_reason=NULL WHERE id=$2`, [accountId, existing.id]);
+    } else {
+      await getDb().query(`INSERT INTO investment_accounts (user_id, account_id, status) VALUES ($1,$2,'pending')`, [userId, accountId]);
+    }
+    await notify(userId, 'Investment enrollment submitted', 'Your investment account request is under review.');
+    res.status(201).json({ message: 'Enrollment requested' });
+  } catch (e) { next(e); }
+}
+
+async function activeInvAccount(client: any, userId: string): Promise<any> {
+  const { rows: [acct] } = await client.query('SELECT * FROM investment_accounts WHERE user_id=$1', [userId]);
+  if (!acct || acct.status !== 'active') throw new AppError('Your investment account is not active yet', 400);
+  return acct;
+}
+
+// POST /wealth/investment/buy  { symbol, shares }
+export async function buyInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const symbol = String(req.body.symbol || '').toUpperCase();
+    const shares = parseFloat(req.body.shares);
+    if (!INV_ASSETS.some(a => a.symbol === symbol)) throw new AppError('Unknown asset', 400);
+    if (isNaN(shares) || shares <= 0) throw new AppError('Enter a valid number of shares', 400);
+    const prices = await getQuotes();
+    const px = prices[symbol]?.price;
+    if (!px) throw new AppError('Price unavailable, try again shortly', 503);
+    const cost = +(shares * px).toFixed(2);
+
+    await client.query('BEGIN');
+    const inv = await activeInvAccount(client, userId);
+    const { rows: [bank] } = await client.query('SELECT available_balance FROM accounts WHERE id=$1 FOR UPDATE', [inv.account_id]);
+    if (!bank || parseFloat(bank.available_balance) < cost) throw new AppError('Insufficient available balance', 400);
+
+    await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [cost, inv.account_id]);
+    const { rows: [h] } = await client.query('SELECT * FROM investment_holdings WHERE user_id=$1 AND symbol=$2 FOR UPDATE', [userId, symbol]);
+    if (h) {
+      const newShares = Number(h.shares) + shares;
+      const newAvg = ((Number(h.shares) * Number(h.avg_price)) + (shares * px)) / newShares;
+      await client.query('UPDATE investment_holdings SET shares=$1, avg_price=$2, updated_at=NOW() WHERE id=$3', [newShares, newAvg, h.id]);
+    } else {
+      await client.query('INSERT INTO investment_holdings (user_id, symbol, shares, avg_price) VALUES ($1,$2,$3,$4)', [userId, symbol, shares, px]);
+    }
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, from_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'withdrawal','completed',$4,$5,$6,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), inv.account_id, cost, `Buy ${shares} ${symbol} @ $${px.toFixed(2)}`, JSON.stringify({ product: 'investment', symbol, shares, price: px })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: `Bought ${shares} ${symbol}` });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
+
+// POST /wealth/investment/sell  { symbol, shares }
+export async function sellInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const symbol = String(req.body.symbol || '').toUpperCase();
+    const shares = parseFloat(req.body.shares);
+    if (isNaN(shares) || shares <= 0) throw new AppError('Enter a valid number of shares', 400);
+    const prices = await getQuotes();
+    const px = prices[symbol]?.price;
+    if (!px) throw new AppError('Price unavailable, try again shortly', 503);
+
+    await client.query('BEGIN');
+    const inv = await activeInvAccount(client, userId);
+    const { rows: [h] } = await client.query('SELECT * FROM investment_holdings WHERE user_id=$1 AND symbol=$2 FOR UPDATE', [userId, symbol]);
+    if (!h || Number(h.shares) < shares) throw new AppError('You do not own that many shares', 400);
+    const proceeds = +(shares * px).toFixed(2);
+    const remaining = Number(h.shares) - shares;
+
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [proceeds, inv.account_id]);
+    if (remaining > 0.0000001) {
+      await client.query('UPDATE investment_holdings SET shares=$1, updated_at=NOW() WHERE id=$2', [remaining, h.id]);
+    } else {
+      await client.query('DELETE FROM investment_holdings WHERE id=$1', [h.id]);
+    }
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'deposit','completed',$4,$5,$6,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), inv.account_id, proceeds, `Sell ${shares} ${symbol} @ $${px.toFixed(2)}`, JSON.stringify({ product: 'investment', symbol, shares, price: px })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: `Sold ${shares} ${symbol}` });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
+
+// ---- admin ----
+export async function adminListInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      `SELECT ia.id, ia.status, ia.reject_reason, ia.created_at, ia.approved_at, a.account_number,
+              TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS user_name, u.email
+       FROM investment_accounts ia
+       JOIN users u ON u.id = ia.user_id
+       LEFT JOIN accounts a ON a.id = ia.account_id
+       ORDER BY (ia.status='pending') DESC, ia.created_at DESC`
+    );
+    res.json(rows);
+  } catch (e) { next(e); }
+}
+export async function adminApproveInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params;
+    const { rows: [a] } = await getDb().query('SELECT * FROM investment_accounts WHERE id=$1', [id]);
+    if (!a) throw new AppError('Enrollment not found', 404);
+    if (a.status !== 'pending') throw new AppError('This enrollment is not pending', 400);
+    await getDb().query(`UPDATE investment_accounts SET status='active', approved_at=NOW() WHERE id=$1`, [id]);
+    await notify(a.user_id, 'Investment account approved', 'Your investment account is active. You can now buy and sell.');
+    await auditLog({ actorId: adminId, action: 'admin.investment.approve', entityId: id });
+    res.json({ message: 'Approved' });
+  } catch (e) { next(e); }
+}
+export async function adminRejectInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params; const { reason } = req.body;
+    const { rows: [a] } = await getDb().query('SELECT * FROM investment_accounts WHERE id=$1', [id]);
+    if (!a) throw new AppError('Enrollment not found', 404);
+    if (a.status !== 'pending') throw new AppError('This enrollment is not pending', 400);
+    await getDb().query(`UPDATE investment_accounts SET status='rejected', reject_reason=$1 WHERE id=$2`, [reason || 'Not approved', id]);
+    await notify(a.user_id, 'Investment enrollment declined', `Your investment account request was declined.${reason ? ' Reason: ' + reason : ''}`);
+    await auditLog({ actorId: adminId, action: 'admin.investment.reject', entityId: id });
+    res.json({ message: 'Rejected' });
+  } catch (e) { next(e); }
+}

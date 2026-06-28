@@ -47,4 +47,13 @@ r.get('/admin/retirement', requireAdmin, c.adminListRetirement);
 r.post('/admin/retirement/:id/approve', requireAdmin, c.adminApproveRetirement);
 r.post('/admin/retirement/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectRetirement);
 
+// ── investment ──
+r.get('/investment', c.getInvestment);
+r.post('/investment/enroll', body('accountId').notEmpty(), validate, c.enrollInvestment);
+r.post('/investment/buy', body('symbol').notEmpty(), body('shares').isFloat({ min: 0.000001 }), validate, c.buyInvestment);
+r.post('/investment/sell', body('symbol').notEmpty(), body('shares').isFloat({ min: 0.000001 }), validate, c.sellInvestment);
+r.get('/admin/investment', requireAdmin, c.adminListInvestment);
+r.post('/admin/investment/:id/approve', requireAdmin, c.adminApproveInvestment);
+r.post('/admin/investment/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectInvestment);
+
 export default r;
