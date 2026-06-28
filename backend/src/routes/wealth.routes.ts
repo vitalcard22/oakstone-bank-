@@ -38,4 +38,13 @@ r.get('/isa', c.getIsa);
 r.post('/isa/contribute', body('accountId').notEmpty(), body('amount').isFloat({ min: 0.01 }), validate, c.contributeIsa);
 r.post('/isa/withdraw', body('amount').isFloat({ min: 0.01 }), validate, c.withdrawIsa);
 
+// ── 401(k) retirement ──
+r.get('/retirement', c.getRetirement);
+r.post('/retirement/enroll', body('accountId').notEmpty(), validate, c.enrollRetirement);
+r.post('/retirement/contribute', body('amount').isFloat({ min: 0.01 }), validate, c.contributeRetirement);
+r.post('/retirement/withdraw', body('amount').isFloat({ min: 0.01 }), validate, c.withdrawRetirement);
+r.get('/admin/retirement', requireAdmin, c.adminListRetirement);
+r.post('/admin/retirement/:id/approve', requireAdmin, c.adminApproveRetirement);
+r.post('/admin/retirement/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectRetirement);
+
 export default r;

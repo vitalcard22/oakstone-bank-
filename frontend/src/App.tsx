@@ -47,6 +47,7 @@ import AdminCardFeesPage from './pages/admin/AdminCardFeesPage';
 import AdminCardsPage from './pages/admin/AdminCardsPage';
 import AdminLoansPage from './pages/admin/AdminLoansPage';
 import AdminFixedDepositsPage from './pages/admin/AdminFixedDepositsPage';
+import AdminRetirementPage from './pages/admin/AdminRetirementPage';
 import AdminTransactionsPage from './pages/admin/AdminTransactionsPage';
 import AdminFraudPage from './pages/admin/AdminFraudPage';
 import AdminAuditPage from './pages/admin/AdminAuditPage';
@@ -118,6 +119,7 @@ export default function App() {
             <Route path="cards" element={<AdminCardsPage />} />
             <Route path="loans" element={<AdminLoansPage />} />
             <Route path="fixed-deposits" element={<AdminFixedDepositsPage />} />
+            <Route path="retirement" element={<AdminRetirementPage />} />
             <Route path="transactions" element={<AdminTransactionsPage />} />
             <Route path="fraud" element={<AdminFraudPage />} />
             <Route path="audit" element={<AdminAuditPage />} />

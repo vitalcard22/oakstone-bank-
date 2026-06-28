@@ -512,3 +512,172 @@ export async function withdrawIsa(req: Request, res: Response, next: NextFunctio
     next(e);
   } finally { client.release(); }
 }
+
+// ═══════════════════ 401(k) RETIREMENT PLAN ═══════════════════
+
+const K401_LIMIT = 23500; // 2025 IRS employee contribution limit
+
+function curYear(): number { return new Date().getFullYear(); }
+
+// GET /wealth/retirement
+export async function getRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    let { rows: [plan] } = await getDb().query('SELECT * FROM retirement_plans WHERE user_id=$1', [userId]);
+    if (plan && plan.status === 'active' && plan.tax_year !== curYear()) {
+      await getDb().query('UPDATE retirement_plans SET contribution_used=0, tax_year=$1 WHERE id=$2', [curYear(), plan.id]);
+      plan.contribution_used = 0; plan.tax_year = curYear();
+    }
+    res.json({
+      plan: plan ? {
+        status: plan.status, balance: plan.balance, contribution_used: plan.contribution_used,
+        reject_reason: plan.reject_reason,
+      } : null,
+      config: { limit: K401_LIMIT, taxYear: curYear() },
+    });
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/retirement/enroll   { accountId }
+export async function enrollRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const { accountId } = req.body;
+    if (!accountId) throw new AppError('Please choose a funding account', 400);
+
+    const { rows: [acct] } = await getDb().query('SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [accountId, userId]);
+    if (!acct) throw new AppError('Account not found', 404);
+
+    const { rows: [existing] } = await getDb().query('SELECT * FROM retirement_plans WHERE user_id=$1', [userId]);
+    if (existing && (existing.status === 'pending' || existing.status === 'active')) {
+      throw new AppError(existing.status === 'active' ? 'You are already enrolled' : 'Your enrollment is already under review', 400);
+    }
+    if (existing) {
+      await getDb().query(
+        `UPDATE retirement_plans SET status='pending', account_id=$1, reject_reason=NULL, tax_year=$2 WHERE id=$3`,
+        [accountId, curYear(), existing.id]
+      );
+    } else {
+      await getDb().query(
+        `INSERT INTO retirement_plans (user_id, account_id, status, tax_year) VALUES ($1,$2,'pending',$3)`,
+        [userId, accountId, curYear()]
+      );
+    }
+    await notify(userId, '401(k) enrollment submitted', 'Your 401(k) enrollment request is under review.');
+    res.status(201).json({ message: 'Enrollment requested' });
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/retirement/contribute   { amount }
+export async function contributeRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const amt = parseFloat(req.body.amount);
+    if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
+    await client.query('BEGIN');
+
+    const { rows: [plan] } = await client.query('SELECT * FROM retirement_plans WHERE user_id=$1 FOR UPDATE', [userId]);
+    if (!plan) throw new AppError('You are not enrolled in a 401(k)', 400);
+    if (plan.status !== 'active') throw new AppError('Your 401(k) enrollment is not active yet', 400);
+
+    const used = plan.tax_year === curYear() ? parseFloat(plan.contribution_used) : 0;
+    if (used + amt > K401_LIMIT) throw new AppError(`That exceeds your annual 401(k) limit. You have ${money(K401_LIMIT - used)} remaining.`, 400);
+
+    const { rows: [acct] } = await client.query('SELECT available_balance FROM accounts WHERE id=$1 FOR UPDATE', [plan.account_id]);
+    if (!acct || parseFloat(acct.available_balance) < amt) throw new AppError('Insufficient available balance', 400);
+
+    await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [amt, plan.account_id]);
+    await client.query('UPDATE retirement_plans SET balance=balance+$1, contribution_used=$2, tax_year=$3 WHERE id=$4',
+      [amt, used + amt, curYear(), plan.id]);
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, from_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'withdrawal','completed',$4,'401(k) contribution',$5,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), plan.account_id, amt, JSON.stringify({ product: 'retirement_401k' })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Contribution added to your 401(k)' });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
+
+// POST /wealth/retirement/withdraw   { amount }
+export async function withdrawRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const userId = (req as any).user.id;
+    const amt = parseFloat(req.body.amount);
+    if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
+    await client.query('BEGIN');
+
+    const { rows: [plan] } = await client.query('SELECT * FROM retirement_plans WHERE user_id=$1 FOR UPDATE', [userId]);
+    if (!plan || plan.status !== 'active') throw new AppError('No active 401(k) found', 400);
+    if (parseFloat(plan.balance) < amt) throw new AppError('You cannot withdraw more than your 401(k) balance', 400);
+
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, plan.account_id]);
+    await client.query('UPDATE retirement_plans SET balance=balance-$1 WHERE id=$2', [amt, plan.id]);
+    await client.query(
+      `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'deposit','completed',$4,'401(k) withdrawal',$5,NOW(),NOW(),NOW())`,
+      [uuid(), generateRef(), plan.account_id, amt, JSON.stringify({ product: 'retirement_401k' })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Withdrawn to your account' });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+}
+
+// ---- admin ----
+
+// GET /wealth/admin/retirement
+export async function adminListRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      `SELECT rp.id, rp.status, rp.balance, rp.contribution_used, rp.reject_reason, rp.created_at, rp.approved_at,
+              a.account_number,
+              TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS user_name, u.email
+       FROM retirement_plans rp
+       JOIN users u ON u.id = rp.user_id
+       LEFT JOIN accounts a ON a.id = rp.account_id
+       ORDER BY (rp.status='pending') DESC, rp.created_at DESC`
+    );
+    res.json(rows);
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/retirement/:id/approve
+export async function adminApproveRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id;
+    const { id } = req.params;
+    const { rows: [plan] } = await getDb().query('SELECT * FROM retirement_plans WHERE id=$1', [id]);
+    if (!plan) throw new AppError('Enrollment not found', 404);
+    if (plan.status !== 'pending') throw new AppError('This enrollment is not pending', 400);
+    await getDb().query(`UPDATE retirement_plans SET status='active', approved_at=NOW() WHERE id=$1`, [id]);
+    await notify(plan.user_id, '401(k) enrollment approved', 'You are now enrolled in the Oakstones 401(k). You can start contributing.');
+    await auditLog({ actorId: adminId, action: 'admin.retirement.approve', entityId: id });
+    res.json({ message: 'Enrollment approved' });
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/retirement/:id/reject   { reason }
+export async function adminRejectRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id;
+    const { id } = req.params;
+    const { reason } = req.body;
+    const { rows: [plan] } = await getDb().query('SELECT * FROM retirement_plans WHERE id=$1', [id]);
+    if (!plan) throw new AppError('Enrollment not found', 404);
+    if (plan.status !== 'pending') throw new AppError('This enrollment is not pending', 400);
+    await getDb().query(`UPDATE retirement_plans SET status='rejected', reject_reason=$1 WHERE id=$2`, [reason || 'Not approved', id]);
+    await notify(plan.user_id, '401(k) enrollment declined', `Your 401(k) enrollment was declined.${reason ? ' Reason: ' + reason : ''}`);
+    await auditLog({ actorId: adminId, action: 'admin.retirement.reject', entityId: id });
+    res.json({ message: 'Enrollment rejected' });
+  } catch (e) { next(e); }
+}

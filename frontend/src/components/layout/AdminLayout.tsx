@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import SessionTimeout from './SessionTimeout';
 import {
   LayoutDashboard, Users, ShieldCheck, DollarSign,
-  CreditCard, Landmark, Activity, AlertTriangle, FileText, Lock,
+  CreditCard, Landmark, Activity, AlertTriangle, FileText, Lock, PiggyBank,
   LogOut, Home, Menu, X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -18,6 +18,7 @@ const NAV = [
   { to: '/admin/cards', label: 'Card applications', Icon: CreditCard },
   { to: '/admin/loans', label: 'Loan applications', Icon: Landmark },
   { to: '/admin/fixed-deposits', label: 'Fixed deposits', Icon: Lock },
+  { to: '/admin/retirement', label: '401(k) enrollments', Icon: PiggyBank },
   { to: '/admin/transactions', label: 'Transactions', Icon: Activity },
   { to: '/admin/fraud', label: 'Fraud alerts', Icon: AlertTriangle },
   { to: '/admin/audit', label: 'Audit log', Icon: FileText },

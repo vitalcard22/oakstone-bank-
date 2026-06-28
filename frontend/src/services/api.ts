@@ -141,6 +141,9 @@ export const adminApi = {
   approveFixedDeposit: (id: string) => api.post(`/wealth/admin/fixed-deposits/${id}/approve`),
   payoutFixedDeposit: (id: string) => api.post(`/wealth/admin/fixed-deposits/${id}/payout`),
   rejectFixedDeposit: (id: string, reason: string) => api.post(`/wealth/admin/fixed-deposits/${id}/reject`, { reason }),
+  retirementEnrollments: () => api.get('/wealth/admin/retirement'),
+  approveRetirement: (id: string) => api.post(`/wealth/admin/retirement/${id}/approve`),
+  rejectRetirement: (id: string, reason: string) => api.post(`/wealth/admin/retirement/${id}/reject`, { reason }),
 };
 
 export const wealthApi = {
@@ -154,4 +157,8 @@ export const wealthApi = {
   isa: () => api.get('/wealth/isa'),
   contributeIsa: (data: any) => api.post('/wealth/isa/contribute', data),
   withdrawIsa: (amount: number) => api.post('/wealth/isa/withdraw', { amount }),
+  retirement: () => api.get('/wealth/retirement'),
+  enrollRetirement: (accountId: string) => api.post('/wealth/retirement/enroll', { accountId }),
+  contributeRetirement: (amount: number) => api.post('/wealth/retirement/contribute', { amount }),
+  withdrawRetirement: (amount: number) => api.post('/wealth/retirement/withdraw', { amount }),
 };
