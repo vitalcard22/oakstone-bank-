@@ -164,6 +164,7 @@ export const wealthApi = {
   enrollRetirement: (accountId: string) => api.post('/wealth/retirement/enroll', { accountId }),
   contributeRetirement: (amount: number) => api.post('/wealth/retirement/contribute', { amount }),
   withdrawRetirement: (amount: number) => api.post('/wealth/retirement/withdraw', { amount }),
+  hub: () => api.get('/wealth/hub'),
   investment: () => api.get('/wealth/investment'),
   enrollInvestment: (accountId: string) => api.post('/wealth/investment/enroll', { accountId }),
   buyInvestment: (symbol: string, shares: number) => api.post('/wealth/investment/buy', { symbol, shares }),

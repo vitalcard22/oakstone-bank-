@@ -48,6 +48,7 @@ r.post('/admin/retirement/:id/approve', requireAdmin, c.adminApproveRetirement);
 r.post('/admin/retirement/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectRetirement);
 
 // ── investment ──
+r.get('/hub', c.getWealthHub);
 r.get('/investment', c.getInvestment);
 r.post('/investment/enroll', body('accountId').notEmpty(), validate, c.enrollInvestment);
 r.post('/investment/buy', body('symbol').notEmpty(), body('shares').isFloat({ min: 0.000001 }), validate, c.buyInvestment);

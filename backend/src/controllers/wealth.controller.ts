@@ -888,3 +888,69 @@ export async function adminRejectInvestment(req: Request, res: Response, next: N
     res.json({ message: 'Rejected' });
   } catch (e) { next(e); }
 }
+
+// ═══════════════════ WEALTH HUB (read-only overview of all products) ═══════════════════
+
+// GET /wealth/hub
+export async function getWealthHub(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const db = getDb();
+
+    const [fdR, sgR, isaR, rpR, iaR] = await Promise.all([
+      db.query(`SELECT COALESCE(SUM(principal),0) AS total, COUNT(*) AS cnt, MIN(maturity_date) AS next_maturity FROM fixed_deposits WHERE user_id=$1 AND status='active'`, [userId]),
+      db.query(`SELECT COALESCE(SUM(saved_amount),0) AS total, COUNT(*) AS cnt FROM savings_goals WHERE user_id=$1`, [userId]),
+      db.query(`SELECT balance, allowance_used FROM isa_accounts WHERE user_id=$1`, [userId]),
+      db.query(`SELECT status, balance FROM retirement_plans WHERE user_id=$1`, [userId]),
+      db.query(`SELECT status FROM investment_accounts WHERE user_id=$1`, [userId]),
+    ]);
+
+    // Fixed Deposit
+    const fdTotal = Number(fdR.rows[0].total);
+    const fdCnt = Number(fdR.rows[0].cnt);
+    const nextMat = fdR.rows[0].next_maturity;
+
+    // Savings Goals
+    const sgTotal = Number(sgR.rows[0].total);
+    const sgCnt = Number(sgR.rows[0].cnt);
+
+    // Roth IRA
+    const isa = isaR.rows[0];
+    const isaBal = isa ? Number(isa.balance) : 0;
+    const isaLeft = isa ? Math.max(0, ISA_ALLOWANCE - Number(isa.allowance_used)) : ISA_ALLOWANCE;
+
+    // 401(k)
+    const rp = rpR.rows[0];
+    const rpActive = rp && rp.status === 'active';
+    const rpBal = rpActive ? Number(rp.balance) : 0;
+
+    // Investment (live value)
+    const iaStatus = iaR.rows[0]?.status ?? null;
+    let invValue = 0, invGain = 0;
+    if (iaStatus === 'active') {
+      const prices = await getQuotes();
+      const { rows: holdings } = await db.query(`SELECT symbol, shares, avg_price FROM investment_holdings WHERE user_id=$1 AND shares > 0`, [userId]);
+      for (const h of holdings) {
+        const px = prices[h.symbol]?.price ?? INV_FALLBACK[h.symbol] ?? 0;
+        invValue += Number(h.shares) * px;
+        invGain += Number(h.shares) * px - Number(h.shares) * Number(h.avg_price);
+      }
+    }
+
+    const products = [
+      { key: 'fixed_deposit', label: 'Fixed Deposit', link: '/fixed-deposit', value: fdTotal,
+        started: fdCnt > 0, status: fdCnt > 0 ? `${fdCnt} active${nextMat ? ` · matures ${new Date(nextMat).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''}` : 'Not started' },
+      { key: 'savings_goals', label: 'Savings Goals', link: '/savings-goals', value: sgTotal,
+        started: sgCnt > 0, status: sgCnt > 0 ? `${sgCnt} goal${sgCnt > 1 ? 's' : ''} in progress` : 'Not started' },
+      { key: 'roth_ira', label: 'Roth IRA', link: '/isa', value: isaBal,
+        started: !!isa, status: isa ? `${money(isaLeft)} allowance left` : 'Not started' },
+      { key: 'retirement_401k', label: '401(k)', link: '/pension', value: rpBal,
+        started: !!rp, status: rp ? (rpActive ? 'Active · contributing' : rp.status === 'pending' ? 'Enrollment under review' : 'Enrollment declined') : 'Not started' },
+      { key: 'investment', label: 'Investment', link: '/investment', value: invValue, gain: invGain,
+        started: iaStatus === 'active', status: iaStatus === 'active' ? `${invGain >= 0 ? '+' : ''}${money(invGain)} return · live` : iaStatus === 'pending' ? 'Enrollment under review' : iaStatus === 'rejected' ? 'Enrollment declined' : 'Not started' },
+    ];
+
+    const total = products.reduce((s, p) => s + p.value, 0);
+    res.json({ total, products });
+  } catch (e) { next(e); }
+}

@@ -1,145 +1,70 @@
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Landmark, PiggyBank, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
+import { wealthApi } from '../../services/api';
+import { Lock, Target, PiggyBank, Landmark, TrendingUp, ChevronRight, Wallet, Plus } from 'lucide-react';
 
-const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+const fmt = (n: any) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n || 0));
 
-const PRODUCTS = [
-  {
-    key: 'investment',
-    icon: TrendingUp,
-    color: 'bg-emerald-50 text-emerald-700',
-    border: 'border-emerald-200',
-    title: 'Investment Account',
-    subtitle: 'IDA — Investment Dealing Account',
-    description: 'Build long-term wealth with access to stocks, ETFs, bonds and more. Start with as little as $100.',
-    features: ['Stocks & ETFs', 'Real-time portfolio tracking', 'Dividend reinvestment', 'No trading fees on ETFs'],
-    rate: null,
-    rateLabel: null,
-    cta: 'Open Investment Account',
-    path: '/investment',
-    badge: 'Popular',
-  },
-  {
-    key: 'pension',
-    icon: Landmark,
-    color: 'bg-blue-50 text-blue-700',
-    border: 'border-blue-200',
-    title: '401(k)',
-    subtitle: 'Employer retirement plan',
-    description: 'A tax-advantaged way to save for retirement. Contributions benefit from tax relief at your marginal rate.',
-    features: ['Tax relief on contributions', 'Withdraw from age 55', '25% tax-free lump sum', 'Min. contribution $50/mo'],
-    rate: null,
-    rateLabel: null,
-    cta: 'Open 401(k)',
-    path: '/pension',
-    badge: 'Tax advantaged',
-  },
-  {
-    key: 'isa',
-    icon: PiggyBank,
-    color: 'bg-purple-50 text-purple-700',
-    border: 'border-purple-200',
-    title: 'Roth IRA',
-    subtitle: 'Individual Savings Account',
-    description: 'Save up to $20,000 per year completely tax-free. Interest, dividends and gains are all sheltered.',
-    features: ['Tax-free growth', '$7,000 annual limit', 'Flexible withdrawals', 'FDIC insured'],
-    rate: '4.85%',
-    rateLabel: 'APY (variable)',
-    cta: 'Open Roth IRA',
-    path: '/isa',
-    badge: 'Tax-free',
-  },
-  {
-    key: 'fixed',
-    icon: Lock,
-    color: 'bg-amber-50 text-amber-700',
-    border: 'border-amber-200',
-    title: 'Fixed Deposit',
-    subtitle: 'Guaranteed returns, locked rate',
-    description: 'Lock in a guaranteed interest rate for 3, 6, 12 or 24 months. Perfect for capital you won\'t need short-term.',
-    features: ['Guaranteed fixed rate', 'Terms from 3–24 months', 'FDIC insured up to $250k', 'Min. deposit $500'],
-    rate: '5.20%',
-    rateLabel: 'APY (12 months)',
-    cta: 'Open Fixed Deposit',
-    path: '/fixed-deposit',
-    badge: 'Guaranteed rate',
-  },
-];
+const META: Record<string, { Icon: any; tint: string; ring: string }> = {
+  fixed_deposit:   { Icon: Lock,       tint: 'bg-amber-50 text-amber-600',     ring: 'hover:border-amber-200' },
+  savings_goals:   { Icon: Target,     tint: 'bg-emerald-50 text-emerald-600', ring: 'hover:border-emerald-200' },
+  roth_ira:        { Icon: PiggyBank,  tint: 'bg-purple-50 text-purple-600',   ring: 'hover:border-purple-200' },
+  retirement_401k: { Icon: Landmark,   tint: 'bg-blue-50 text-blue-600',       ring: 'hover:border-blue-200' },
+  investment:      { Icon: TrendingUp, tint: 'bg-teal-50 text-teal-600',       ring: 'hover:border-teal-200' },
+};
 
 export default function WealthHubPage() {
   const navigate = useNavigate();
+  const { data, isLoading } = useQuery({ queryKey: ['wealth-hub'], queryFn: () => wealthApi.hub().then(r => r.data) });
+
+  if (isLoading) return <p className="text-sm text-gray-400">Loading…</p>;
+
+  const products = data?.products ?? [];
+  const total = data?.total ?? 0;
+  const activeCount = products.filter((p: any) => p.started).length;
 
   return (
-    <div>
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-emerald-800 to-emerald-600 rounded-2xl p-8 mb-8 text-white">
-        <div className="flex items-center gap-2 mb-3">
-          <ShieldCheck size={20} className="text-emerald-300" />
-          <span className="text-emerald-300 text-sm font-medium">Oakstones 1 Bank — Wealth Hub</span>
+    <div className="space-y-6">
+      {/* Total wealth */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8">
+        <div className="flex items-center gap-2 mb-1">
+          <Wallet size={16} className="text-gray-400" />
+          <p className="text-sm text-gray-500">Total wealth across products</p>
         </div>
-        <h1 className="text-3xl font-bold mb-2">Grow your wealth</h1>
-        <p className="text-emerald-100 text-lg max-w-xl">
-          From tax-free savings to retirement planning and investment portfolios — everything you need to build lasting financial security.
+        <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-2 break-words">{fmt(total)}</h1>
+        <p className="text-sm text-gray-400">
+          {activeCount > 0 ? `Across ${activeCount} active product${activeCount > 1 ? 's' : ''} · real balances only` : 'Start with any product below to grow your wealth'}
         </p>
-        <div className="mt-6 grid grid-cols-3 gap-4 max-w-sm">
-          {[
-            { label: 'Products', value: '4' },
-            { label: 'Min. to start', value: '$50' },
-            { label: 'Protected up to', value: '$85k' },
-          ].map(s => (
-            <div key={s.label}>
-              <p className="text-2xl font-bold">{s.value}</p>
-              <p className="text-emerald-300 text-xs">{s.label}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* Products grid */}
-      <div className="grid grid-cols-2 gap-6">
-        {PRODUCTS.map(p => {
-          const Icon = p.icon;
+      {/* Product cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {products.map((p: any) => {
+          const m = META[p.key] ?? { Icon: Wallet, tint: 'bg-gray-50 text-gray-500', ring: 'hover:border-gray-300' };
           return (
-            <div key={p.key} className={`card p-6 border ${p.border} hover:shadow-md transition-shadow`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${p.color}`}>
-                  <Icon size={20} />
-                </div>
-                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{p.badge}</span>
+            <button key={p.key} onClick={() => navigate(p.link)}
+              className={`text-left bg-white border border-gray-200 rounded-2xl p-5 transition-colors ${m.ring} ${!p.started ? 'opacity-90' : ''}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${m.tint}`}><m.Icon size={18} /></div>
+                <ChevronRight size={16} className="text-gray-300" />
               </div>
-              <h3 className="font-bold text-gray-900 text-lg">{p.title}</h3>
-              <p className="text-xs text-gray-400 mb-2">{p.subtitle}</p>
-              {p.rate && (
-                <div className="mb-3">
-                  <span className="text-2xl font-bold text-emerald-700">{p.rate}</span>
-                  <span className="text-xs text-gray-400 ml-1">{p.rateLabel}</span>
-                </div>
+              <p className="text-sm font-medium text-gray-900 mb-1">{p.label}</p>
+              {p.started ? (
+                <p className="text-2xl font-bold text-gray-900 break-words">{fmt(p.value)}</p>
+              ) : (
+                <p className="text-2xl font-bold text-gray-300">{fmt(0)}</p>
               )}
-              <p className="text-sm text-gray-500 mb-4">{p.description}</p>
-              <ul className="space-y-1 mb-5">
-                {p.features.map(f => (
-                  <li key={f} className="flex items-center gap-2 text-xs text-gray-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => navigate(p.path)}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
-              >
-                {p.cta} <ArrowRight size={14} />
-              </button>
-            </div>
+              <p className={`text-xs mt-1 ${p.key === 'investment' && p.started && (p.gain ?? 0) >= 0 ? 'text-green-600' : 'text-gray-400'}`}>{p.status}</p>
+            </button>
           );
         })}
-      </div>
 
-      {/* Disclaimer */}
-      <p className="text-xs text-gray-400 mt-6 text-center">
-        Capital at risk. The value of investments can go down as well as up. FDIC insurance applies to eligible deposits only.
-        Oakstones 1 Bank is a prototype — not a regulated financial institution.
-      </p>
+        {/* Explore prompt */}
+        <div className="border border-dashed border-gray-300 rounded-2xl p-5 flex flex-col justify-center bg-gray-50/50">
+          <div className="flex items-center gap-2 mb-1"><Plus size={16} className="text-gray-400" /><p className="text-sm font-medium text-gray-500">Explore products</p></div>
+          <p className="text-xs text-gray-400">Untouched products show $0 here — never estimated or fake balances.</p>
+        </div>
+      </div>
     </div>
   );
 }
