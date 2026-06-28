@@ -34,7 +34,7 @@ export default function SavingsGoalsPage() {
   });
   const withdrawMut = useMutation({
     mutationFn: ({ id, amount }: { id: string; amount: number }) => wealthApi.withdrawSavingsGoal(id, amount),
-    onSuccess: () => { refresh(); setMoveFor(null); setMoveAmt(''); toast.success('Moved back to account'); },
+    onSuccess: () => { refresh(); setMoveFor(null); setMoveAmt(''); toast.success('Withdrawal request submitted for approval'); },
     onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed'),
   });
   const deleteMut = useMutation({
@@ -112,7 +112,7 @@ export default function SavingsGoalsPage() {
                 <div className="flex flex-wrap gap-2 items-center">
                   <input type="number" value={moveAmt} onChange={e => setMoveAmt(e.target.value)} placeholder="Amount" className="input flex-1 min-w-[120px] text-sm py-1.5" />
                   <button onClick={() => contribMut.mutate({ id: g.id, amount: Number(moveAmt) })} className="btn-primary text-xs py-1.5 px-3">Add</button>
-                  <button onClick={() => withdrawMut.mutate({ id: g.id, amount: Number(moveAmt) })} className="text-xs py-1.5 px-3 border border-gray-200 rounded-lg hover:bg-gray-50">Withdraw</button>
+                  <button onClick={() => withdrawMut.mutate({ id: g.id, amount: Number(moveAmt) })} className="text-xs py-1.5 px-3 border border-gray-200 rounded-lg hover:bg-gray-50">Request withdrawal</button>
                   <button onClick={() => { setMoveFor(null); setMoveAmt(''); }} className="text-xs text-gray-400">Cancel</button>
                 </div>
               ) : (

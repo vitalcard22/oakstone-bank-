@@ -46,7 +46,7 @@ export default function PensionPage() {
   });
   const wMut = useMutation({
     mutationFn: () => wealthApi.withdrawRetirement(parseFloat(amount) || 0),
-    onSuccess: () => { refresh(); setAmount(''); toast.success('Withdrawn to your account'); },
+    onSuccess: () => { refresh(); setAmount(''); toast.success('Withdrawal request submitted for approval'); },
     onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed'),
   });
 
@@ -168,7 +168,7 @@ export default function PensionPage() {
               <p className="text-xs text-gray-400 mb-4">{mode === 'add' ? `${fmt2(remaining)} of your limit remaining.` : `${fmt2(balance)} available to withdraw.`}</p>
               {mode === 'add'
                 ? <button onClick={() => { if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > remaining) { toast.error('Exceeds your remaining limit'); return; } addMut.mutate(); }} disabled={addMut.isPending} className="btn-primary w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50">{addMut.isPending ? 'Adding…' : 'Contribute'}</button>
-                : <button onClick={() => { if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > balance) { toast.error('More than your balance'); return; } wMut.mutate(); }} disabled={wMut.isPending} className="btn-primary w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50">{wMut.isPending ? 'Withdrawing…' : 'Withdraw'}</button>}
+                : <button onClick={() => { if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > balance) { toast.error('More than your balance'); return; } wMut.mutate(); }} disabled={wMut.isPending} className="btn-primary w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50">{wMut.isPending ? 'Submitting…' : 'Request withdrawal'}</button>}
             </div>
 
             {/* Projection */}

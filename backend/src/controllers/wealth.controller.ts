@@ -348,42 +348,80 @@ export async function contributeSavingsGoal(req: Request, res: Response, next: N
 
 // POST /wealth/savings-goals/:id/withdraw   { amount }
 export async function withdrawSavingsGoal(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const db = getDb();
-  const client = await (db as any).connect();
   try {
     await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const { id } = req.params;
     const amt = parseFloat(req.body.amount);
     if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
-    await client.query('BEGIN');
-
-    const { rows: [g] } = await client.query(
-      'SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId]
-    );
+    const { rows: [g] } = await getDb().query('SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2', [id, userId]);
     if (!g) throw new AppError('Goal not found', 404);
-    await ensureAccountActive(client, g.account_id);
+    await ensureAccountActive(getDb(), g.account_id);
     if (parseFloat(g.saved_amount) < amt) throw new AppError('You cannot withdraw more than you have saved', 400);
+    const { rows: [p] } = await getDb().query("SELECT COALESCE(SUM(amount),0) AS pending FROM withdrawal_requests WHERE ref_id=$1 AND product='savings' AND status='pending'", [id]);
+    if (parseFloat(p.pending) + amt > parseFloat(g.saved_amount)) throw new AppError('You already have pending withdrawal requests for this goal.', 400);
+    await getDb().query("INSERT INTO withdrawal_requests (user_id, product, account_id, amount, ref_id, status) VALUES ($1,'savings',$2,$3,$4,'pending')", [userId, g.account_id, amt, id]);
+    await notify(userId, 'Withdrawal requested', `Your withdrawal of ${money(amt)} from "${g.name}" is pending approval.`);
+    res.json({ message: 'Withdrawal request submitted for approval' });
+  } catch (e) { next(e); }
+}
 
-    await client.query(
-      'UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2',
-      [amt, g.account_id]
-    );
-    const newSaved = +(parseFloat(g.saved_amount) - amt).toFixed(2);
-    const status = newSaved >= parseFloat(g.target_amount) ? 'completed' : 'active';
-    await client.query('UPDATE savings_goals SET saved_amount=$1, status=$2 WHERE id=$3', [newSaved, status, id]);
+// GET /wealth/admin/savings/withdrawals
+export async function adminListSavingsWithdrawals(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      `SELECT w.id, w.amount, w.status, w.reject_reason, w.created_at, a.account_number, g.name AS goal_name,
+              TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS user_name, u.email
+       FROM withdrawal_requests w JOIN users u ON u.id=w.user_id
+       LEFT JOIN accounts a ON a.id=w.account_id LEFT JOIN savings_goals g ON g.id=w.ref_id
+       WHERE w.product='savings' ORDER BY (w.status='pending') DESC, w.created_at DESC`);
+    res.json(rows);
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/savings/withdrawals/:id/approve
+export async function adminApproveSavingsWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params;
+    await client.query('BEGIN');
+    const { rows: [w] } = await client.query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='savings' FOR UPDATE", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    const { rows: [g] } = await client.query('SELECT * FROM savings_goals WHERE id=$1 FOR UPDATE', [w.ref_id]);
+    if (!g || parseFloat(g.saved_amount) < parseFloat(w.amount)) throw new AppError('Goal no longer has sufficient balance', 400);
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [w.amount, w.account_id]);
+    const newSaved = +(parseFloat(g.saved_amount) - parseFloat(w.amount)).toFixed(2);
+    const st = newSaved >= parseFloat(g.target_amount) ? 'completed' : 'active';
+    await client.query('UPDATE savings_goals SET saved_amount=$1, status=$2 WHERE id=$3', [newSaved, st, g.id]);
     await client.query(
       `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
        VALUES ($1,$2,$3,'deposit','completed',$4,$5,$6,NOW(),NOW(),NOW())`,
-      [uuid(), generateRef(), g.account_id, amt, `Savings goal withdrawal: ${g.name}`,
-       JSON.stringify({ product: 'savings_goal', savingsGoalId: id })]
-    );
+      [uuid(), generateRef(), w.account_id, w.amount, `Savings goal withdrawal: ${g.name}`, JSON.stringify({ product: 'savings_goal', savingsGoalId: g.id })]);
+    await client.query("UPDATE withdrawal_requests SET status='approved', processed_at=NOW() WHERE id=$1", [id]);
     await client.query('COMMIT');
-    res.json({ message: 'Withdrawn to your account', saved: newSaved });
+    await notify(w.user_id, 'Withdrawal approved', `Your withdrawal of ${money(w.amount)} from "${g.name}" has been approved and paid.`);
+    await auditLog({ actorId: adminId, action: 'admin.savings.withdrawal.approve', entityId: id });
+    res.json({ message: 'Withdrawal approved and paid' });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
   } finally { client.release(); }
+}
+
+// POST /wealth/admin/savings/withdrawals/:id/reject  { reason }
+export async function adminRejectSavingsWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params; const { reason } = req.body;
+    const { rows: [w] } = await getDb().query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='savings'", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    await getDb().query("UPDATE withdrawal_requests SET status='rejected', reject_reason=$1, processed_at=NOW() WHERE id=$2", [reason || 'Not approved', id]);
+    await notify(w.user_id, 'Withdrawal declined', `Your savings withdrawal of ${money(w.amount)} was declined.${reason ? ' Reason: ' + reason : ''}`);
+    await auditLog({ actorId: adminId, action: 'admin.savings.withdrawal.reject', entityId: id });
+    res.json({ message: 'Withdrawal rejected' });
+  } catch (e) { next(e); }
 }
 
 // DELETE /wealth/savings-goals/:id  — returns any saved funds, then removes the goal
@@ -616,6 +654,7 @@ export async function getRetirement(req: Request, res: Response, next: NextFunct
         status: plan.status, balance: plan.balance, contribution_used: plan.contribution_used,
         reject_reason: plan.reject_reason,
       } : null,
+      pendingWithdrawal: (await getDb().query("SELECT COALESCE(SUM(amount),0) AS p FROM withdrawal_requests WHERE user_id=$1 AND product='retirement_401k' AND status='pending'", [userId])).rows[0].p,
       config: { limit: K401_LIMIT, taxYear: curYear() },
     });
   } catch (e) { next(e); }
@@ -689,35 +728,78 @@ export async function contributeRetirement(req: Request, res: Response, next: Ne
   } finally { client.release(); }
 }
 
-// POST /wealth/retirement/withdraw   { amount }
+// POST /wealth/retirement/withdraw   { amount }  → request for admin approval
 export async function withdrawRetirement(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const db = getDb();
-  const client = await (db as any).connect();
   try {
     await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const amt = parseFloat(req.body.amount);
     if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
-    await client.query('BEGIN');
-
-    const { rows: [plan] } = await client.query('SELECT * FROM retirement_plans WHERE user_id=$1 FOR UPDATE', [userId]);
+    const { rows: [plan] } = await getDb().query('SELECT * FROM retirement_plans WHERE user_id=$1', [userId]);
     if (!plan || plan.status !== 'active') throw new AppError('No active 401(k) found', 400);
+    await ensureAccountActive(getDb(), plan.account_id);
     if (parseFloat(plan.balance) < amt) throw new AppError('You cannot withdraw more than your 401(k) balance', 400);
+    const { rows: [p] } = await getDb().query("SELECT COALESCE(SUM(amount),0) AS pending FROM withdrawal_requests WHERE user_id=$1 AND product='retirement_401k' AND status='pending'", [userId]);
+    if (parseFloat(p.pending) + amt > parseFloat(plan.balance)) throw new AppError('You already have pending withdrawal requests covering this balance.', 400);
+    await getDb().query("INSERT INTO withdrawal_requests (user_id, product, account_id, amount, status) VALUES ($1,'retirement_401k',$2,$3,'pending')", [userId, plan.account_id, amt]);
+    await notify(userId, 'Withdrawal requested', `Your 401(k) withdrawal of ${money(amt)} is pending approval.`);
+    res.json({ message: 'Withdrawal request submitted for approval' });
+  } catch (e) { next(e); }
+}
 
-    await ensureAccountActive(client, plan.account_id);
-    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, plan.account_id]);
-    await client.query('UPDATE retirement_plans SET balance=balance-$1 WHERE id=$2', [amt, plan.id]);
+// GET /wealth/admin/retirement/withdrawals
+export async function adminListRetirementWithdrawals(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      `SELECT w.id, w.amount, w.status, w.reject_reason, w.created_at, a.account_number,
+              TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS user_name, u.email
+       FROM withdrawal_requests w JOIN users u ON u.id=w.user_id LEFT JOIN accounts a ON a.id=w.account_id
+       WHERE w.product='retirement_401k' ORDER BY (w.status='pending') DESC, w.created_at DESC`);
+    res.json(rows);
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/retirement/withdrawals/:id/approve
+export async function adminApproveRetirementWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params;
+    await client.query('BEGIN');
+    const { rows: [w] } = await client.query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='retirement_401k' FOR UPDATE", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    const { rows: [plan] } = await client.query('SELECT * FROM retirement_plans WHERE user_id=$1 FOR UPDATE', [w.user_id]);
+    if (!plan || parseFloat(plan.balance) < parseFloat(w.amount)) throw new AppError('Customer no longer has sufficient 401(k) balance', 400);
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [w.amount, w.account_id]);
+    await client.query('UPDATE retirement_plans SET balance=balance-$1 WHERE id=$2', [w.amount, plan.id]);
     await client.query(
       `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
        VALUES ($1,$2,$3,'deposit','completed',$4,'401(k) withdrawal',$5,NOW(),NOW(),NOW())`,
-      [uuid(), generateRef(), plan.account_id, amt, JSON.stringify({ product: 'retirement_401k' })]
-    );
+      [uuid(), generateRef(), w.account_id, w.amount, JSON.stringify({ product: 'retirement_401k' })]);
+    await client.query("UPDATE withdrawal_requests SET status='approved', processed_at=NOW() WHERE id=$1", [id]);
     await client.query('COMMIT');
-    res.json({ message: 'Withdrawn to your account' });
+    await notify(w.user_id, 'Withdrawal approved', `Your 401(k) withdrawal of ${money(w.amount)} has been approved and paid.`);
+    await auditLog({ actorId: adminId, action: 'admin.retirement.withdrawal.approve', entityId: id });
+    res.json({ message: 'Withdrawal approved and paid' });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
   } finally { client.release(); }
+}
+
+// POST /wealth/admin/retirement/withdrawals/:id/reject  { reason }
+export async function adminRejectRetirementWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params; const { reason } = req.body;
+    const { rows: [w] } = await getDb().query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='retirement_401k'", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    await getDb().query("UPDATE withdrawal_requests SET status='rejected', reject_reason=$1, processed_at=NOW() WHERE id=$2", [reason || 'Not approved', id]);
+    await notify(w.user_id, 'Withdrawal declined', `Your 401(k) withdrawal of ${money(w.amount)} was declined.${reason ? ' Reason: ' + reason : ''}`);
+    await auditLog({ actorId: adminId, action: 'admin.retirement.withdrawal.reject', entityId: id });
+    res.json({ message: 'Withdrawal rejected' });
+  } catch (e) { next(e); }
 }
 
 // ---- admin ----
@@ -821,9 +903,12 @@ export async function getInvestment(req: Request, res: Response, next: NextFunct
         return { symbol: h.symbol, shares: Number(h.shares), avg_price: Number(h.avg_price), price: px, value, gain: value - cost };
       });
     }
+    const { rows: pendRows } = await getDb().query("SELECT symbol, COALESCE(SUM(shares),0) AS shares FROM withdrawal_requests WHERE user_id=$1 AND product='investment' AND status='pending' GROUP BY symbol", [userId]);
+    const pendingSells: Record<string, number> = {};
+    for (const r of pendRows) pendingSells[r.symbol] = Number(r.shares);
     res.json({
       account: acct ? { status: acct.status, reject_reason: acct.reject_reason } : null,
-      assets: INV_ASSETS, prices, holdings,
+      assets: INV_ASSETS, prices, holdings, pendingSells,
     });
   } catch (e) { next(e); }
 }
@@ -900,45 +985,87 @@ export async function buyInvestment(req: Request, res: Response, next: NextFunct
   } finally { client.release(); }
 }
 
-// POST /wealth/investment/sell  { symbol, shares }
+// POST /wealth/investment/sell  { symbol, shares }  → request; price executes at approval
 export async function sellInvestment(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const db = getDb();
-  const client = await (db as any).connect();
   try {
     await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const symbol = String(req.body.symbol || '').toUpperCase();
     const shares = parseFloat(req.body.shares);
     if (isNaN(shares) || shares <= 0) throw new AppError('Enter a valid number of shares', 400);
-    const prices = await getQuotes();
-    const px = prices[symbol]?.price;
-    if (!px) throw new AppError('Price unavailable, try again shortly', 503);
-
-    await client.query('BEGIN');
-    const inv = await activeInvAccount(client, userId);
-    const { rows: [h] } = await client.query('SELECT * FROM investment_holdings WHERE user_id=$1 AND symbol=$2 FOR UPDATE', [userId, symbol]);
+    const { rows: [inv] } = await getDb().query('SELECT * FROM investment_accounts WHERE user_id=$1', [userId]);
+    if (!inv || inv.status !== 'active') throw new AppError('Your investment account is not active yet', 400);
+    await ensureAccountActive(getDb(), inv.account_id);
+    const { rows: [h] } = await getDb().query('SELECT * FROM investment_holdings WHERE user_id=$1 AND symbol=$2', [userId, symbol]);
     if (!h || Number(h.shares) < shares) throw new AppError('You do not own that many shares', 400);
-    const proceeds = +(shares * px).toFixed(2);
-    const remaining = Number(h.shares) - shares;
+    const { rows: [p] } = await getDb().query("SELECT COALESCE(SUM(shares),0) AS pending FROM withdrawal_requests WHERE user_id=$1 AND product='investment' AND symbol=$2 AND status='pending'", [userId, symbol]);
+    if (parseFloat(p.pending) + shares > Number(h.shares)) throw new AppError('You already have pending sell requests covering these shares.', 400);
+    await getDb().query("INSERT INTO withdrawal_requests (user_id, product, account_id, symbol, shares, status) VALUES ($1,'investment',$2,$3,$4,'pending')", [userId, inv.account_id, symbol, shares]);
+    await notify(userId, 'Sell requested', `Your request to sell ${shares} ${symbol} is pending approval.`);
+    res.json({ message: 'Sell request submitted for approval' });
+  } catch (e) { next(e); }
+}
 
-    await ensureAccountActive(client, inv.account_id);
-    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [proceeds, inv.account_id]);
-    if (remaining > 0.0000001) {
-      await client.query('UPDATE investment_holdings SET shares=$1, updated_at=NOW() WHERE id=$2', [remaining, h.id]);
-    } else {
-      await client.query('DELETE FROM investment_holdings WHERE id=$1', [h.id]);
-    }
+// GET /wealth/admin/investment/withdrawals
+export async function adminListInvestmentWithdrawals(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const prices = await getQuotes();
+    const { rows } = await getDb().query(
+      `SELECT w.id, w.symbol, w.shares, w.status, w.reject_reason, w.created_at, a.account_number,
+              TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS user_name, u.email
+       FROM withdrawal_requests w JOIN users u ON u.id=w.user_id LEFT JOIN accounts a ON a.id=w.account_id
+       WHERE w.product='investment' ORDER BY (w.status='pending') DESC, w.created_at DESC`);
+    res.json(rows.map((r: any) => ({ ...r, est_price: prices[r.symbol]?.price ?? INV_FALLBACK[r.symbol] ?? 0, est_proceeds: Number(r.shares) * (prices[r.symbol]?.price ?? INV_FALLBACK[r.symbol] ?? 0) })));
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/investment/withdrawals/:id/approve  → sells at current live price
+export async function adminApproveInvestmentWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params;
+    const prices = await getQuotes();
+    await client.query('BEGIN');
+    const { rows: [w] } = await client.query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='investment' FOR UPDATE", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    const px = prices[w.symbol]?.price;
+    if (!px) throw new AppError('Price unavailable, try again shortly', 503);
+    const { rows: [h] } = await client.query('SELECT * FROM investment_holdings WHERE user_id=$1 AND symbol=$2 FOR UPDATE', [w.user_id, w.symbol]);
+    if (!h || Number(h.shares) < Number(w.shares)) throw new AppError('Customer no longer owns enough shares', 400);
+    const proceeds = +(Number(w.shares) * px).toFixed(2);
+    const remaining = Number(h.shares) - Number(w.shares);
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [proceeds, w.account_id]);
+    if (remaining > 0.0000001) await client.query('UPDATE investment_holdings SET shares=$1, updated_at=NOW() WHERE id=$2', [remaining, h.id]);
+    else await client.query('DELETE FROM investment_holdings WHERE id=$1', [h.id]);
     await client.query(
       `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
        VALUES ($1,$2,$3,'deposit','completed',$4,$5,$6,NOW(),NOW(),NOW())`,
-      [uuid(), generateRef(), inv.account_id, proceeds, `Sell ${shares} ${symbol} @ $${px.toFixed(2)}`, JSON.stringify({ product: 'investment', symbol, shares, price: px })]
-    );
+      [uuid(), generateRef(), w.account_id, proceeds, `Sell ${w.shares} ${w.symbol} @ $${px.toFixed(2)}`, JSON.stringify({ product: 'investment', symbol: w.symbol, shares: Number(w.shares), price: px })]);
+    await client.query("UPDATE withdrawal_requests SET status='approved', amount=$1, processed_at=NOW() WHERE id=$2", [proceeds, id]);
     await client.query('COMMIT');
-    res.json({ message: `Sold ${shares} ${symbol}` });
+    await notify(w.user_id, 'Sell approved', `Your sale of ${w.shares} ${w.symbol} executed at $${px.toFixed(2)} — ${money(proceeds)} paid to your account.`);
+    await auditLog({ actorId: adminId, action: 'admin.investment.withdrawal.approve', entityId: id });
+    res.json({ message: `Sold ${w.shares} ${w.symbol} for ${money(proceeds)}` });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
   } finally { client.release(); }
+}
+
+// POST /wealth/admin/investment/withdrawals/:id/reject  { reason }
+export async function adminRejectInvestmentWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params; const { reason } = req.body;
+    const { rows: [w] } = await getDb().query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='investment'", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    await getDb().query("UPDATE withdrawal_requests SET status='rejected', reject_reason=$1, processed_at=NOW() WHERE id=$2", [reason || 'Not approved', id]);
+    await notify(w.user_id, 'Sell declined', `Your request to sell ${w.shares} ${w.symbol} was declined.${reason ? ' Reason: ' + reason : ''}`);
+    await auditLog({ actorId: adminId, action: 'admin.investment.withdrawal.reject', entityId: id });
+    res.json({ message: 'Sell request rejected' });
+  } catch (e) { next(e); }
 }
 
 // ---- admin ----

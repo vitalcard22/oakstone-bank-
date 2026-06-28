@@ -152,9 +152,18 @@ isaEnrollments: () => api.get('/wealth/admin/isa'),
   retirementEnrollments: () => api.get('/wealth/admin/retirement'),
   approveRetirement: (id: string) => api.post(`/wealth/admin/retirement/${id}/approve`),
   rejectRetirement: (id: string, reason: string) => api.post(`/wealth/admin/retirement/${id}/reject`, { reason }),
+  retirementWithdrawals: () => api.get('/wealth/admin/retirement/withdrawals'),
+  approveRetirementWithdrawal: (id: string) => api.post(`/wealth/admin/retirement/withdrawals/${id}/approve`),
+  rejectRetirementWithdrawal: (id: string, reason: string) => api.post(`/wealth/admin/retirement/withdrawals/${id}/reject`, { reason }),
   investmentEnrollments: () => api.get('/wealth/admin/investment'),
   approveInvestment: (id: string) => api.post(`/wealth/admin/investment/${id}/approve`),
   rejectInvestment: (id: string, reason: string) => api.post(`/wealth/admin/investment/${id}/reject`, { reason }),
+  investmentWithdrawals: () => api.get('/wealth/admin/investment/withdrawals'),
+  approveInvestmentWithdrawal: (id: string) => api.post(`/wealth/admin/investment/withdrawals/${id}/approve`),
+  rejectInvestmentWithdrawal: (id: string, reason: string) => api.post(`/wealth/admin/investment/withdrawals/${id}/reject`, { reason }),
+  savingsWithdrawals: () => api.get('/wealth/admin/savings/withdrawals'),
+  approveSavingsWithdrawal: (id: string) => api.post(`/wealth/admin/savings/withdrawals/${id}/approve`),
+  rejectSavingsWithdrawal: (id: string, reason: string) => api.post(`/wealth/admin/savings/withdrawals/${id}/reject`, { reason }),
 };
 
 export const wealthApi = {

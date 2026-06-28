@@ -32,6 +32,9 @@ r.post('/savings-goals',
 r.post('/savings-goals/:id/contribute', body('amount').isFloat({ min: 0.01 }), validate, c.contributeSavingsGoal);
 r.post('/savings-goals/:id/withdraw', body('amount').isFloat({ min: 0.01 }), validate, c.withdrawSavingsGoal);
 r.delete('/savings-goals/:id', c.deleteSavingsGoal);
+r.get('/admin/savings/withdrawals', requireAdmin, c.adminListSavingsWithdrawals);
+r.post('/admin/savings/withdrawals/:id/approve', requireAdmin, c.adminApproveSavingsWithdrawal);
+r.post('/admin/savings/withdrawals/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectSavingsWithdrawal);
 
 // ── ISA (user) ──
 r.get('/isa', c.getIsa);
@@ -53,6 +56,9 @@ r.post('/retirement/withdraw', body('amount').isFloat({ min: 0.01 }), validate, 
 r.get('/admin/retirement', requireAdmin, c.adminListRetirement);
 r.post('/admin/retirement/:id/approve', requireAdmin, c.adminApproveRetirement);
 r.post('/admin/retirement/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectRetirement);
+r.get('/admin/retirement/withdrawals', requireAdmin, c.adminListRetirementWithdrawals);
+r.post('/admin/retirement/withdrawals/:id/approve', requireAdmin, c.adminApproveRetirementWithdrawal);
+r.post('/admin/retirement/withdrawals/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectRetirementWithdrawal);
 
 // ── investment ──
 r.get('/hub', c.getWealthHub);
@@ -63,5 +69,8 @@ r.post('/investment/sell', body('symbol').notEmpty(), body('shares').isFloat({ m
 r.get('/admin/investment', requireAdmin, c.adminListInvestment);
 r.post('/admin/investment/:id/approve', requireAdmin, c.adminApproveInvestment);
 r.post('/admin/investment/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectInvestment);
+r.get('/admin/investment/withdrawals', requireAdmin, c.adminListInvestmentWithdrawals);
+r.post('/admin/investment/withdrawals/:id/approve', requireAdmin, c.adminApproveInvestmentWithdrawal);
+r.post('/admin/investment/withdrawals/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectInvestmentWithdrawal);
 
 export default r;

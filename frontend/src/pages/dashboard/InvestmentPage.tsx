@@ -50,7 +50,7 @@ export default function InvestmentPage() {
 
   const enrollMut = useMutation({ mutationFn: () => wealthApi.enrollInvestment(accountId), onSuccess: () => { refresh(); toast.success('Enrollment requested'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
   const buyMut = useMutation({ mutationFn: () => wealthApi.buyInvestment(selected, sh), onSuccess: () => { refresh(); setShares(''); toast.success(`Bought ${sh} ${selected}`); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
-  const sellMut = useMutation({ mutationFn: () => wealthApi.sellInvestment(selected, sh), onSuccess: () => { refresh(); setShares(''); toast.success(`Sold ${sh} ${selected}`); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
+  const sellMut = useMutation({ mutationFn: () => wealthApi.sellInvestment(selected, sh), onSuccess: () => { refresh(); setShares(''); toast.success('Sell request submitted for approval'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
 
   if (isLoading) return <p className="text-sm text-gray-400">Loading market…</p>;
 
@@ -127,7 +127,7 @@ export default function InvestmentPage() {
           <p className="text-xs text-gray-400 mb-4">Estimated {mode === 'buy' ? 'cost' : 'proceeds'}: <span className="font-medium text-gray-700">{fmt(estCost)}</span></p>
           {mode === 'buy'
             ? <button onClick={() => { if (sh <= 0) { toast.error('Enter shares'); return; } buyMut.mutate(); }} disabled={buyMut.isPending} className="btn-primary w-full bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50">{buyMut.isPending ? 'Buying…' : `Buy ${selected}`}</button>
-            : <button onClick={() => { if (sh <= 0) { toast.error('Enter shares'); return; } if (sh > ownedShares) { toast.error('More than you own'); return; } sellMut.mutate(); }} disabled={sellMut.isPending} className="btn-primary w-full bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50">{sellMut.isPending ? 'Selling…' : `Sell ${selected}`}</button>}
+            : <button onClick={() => { if (sh <= 0) { toast.error('Enter shares'); return; } if (sh > ownedShares) { toast.error('More than you own'); return; } sellMut.mutate(); }} disabled={sellMut.isPending} className="btn-primary w-full bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50">{sellMut.isPending ? 'Submitting…' : `Request sell ${selected}`}</button>}
         </div>
       )}
 

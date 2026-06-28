@@ -50,6 +50,7 @@ import AdminFixedDepositsPage from './pages/admin/AdminFixedDepositsPage';
 import AdminRetirementPage from './pages/admin/AdminRetirementPage';
 import AdminInvestmentPage from './pages/admin/AdminInvestmentPage';
 import AdminISAPage from './pages/admin/AdminISAPage';
+import AdminSavingsPage from './pages/admin/AdminSavingsPage';
 import AdminTransactionsPage from './pages/admin/AdminTransactionsPage';
 import AdminFraudPage from './pages/admin/AdminFraudPage';
 import AdminAuditPage from './pages/admin/AdminAuditPage';
@@ -124,6 +125,7 @@ export default function App() {
             <Route path="retirement" element={<AdminRetirementPage />} />
             <Route path="investment" element={<AdminInvestmentPage />} />
             <Route path="roth-ira" element={<AdminISAPage />} />
+            <Route path="savings" element={<AdminSavingsPage />} />
             <Route path="transactions" element={<AdminTransactionsPage />} />
             <Route path="fraud" element={<AdminFraudPage />} />
             <Route path="audit" element={<AdminAuditPage />} />
