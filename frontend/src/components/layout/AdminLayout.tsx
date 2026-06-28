@@ -20,6 +20,7 @@ const NAV = [
   { to: '/admin/fixed-deposits', label: 'Fixed deposits', Icon: Lock },
   { to: '/admin/retirement', label: '401(k) enrollments', Icon: PiggyBank },
   { to: '/admin/investment', label: 'Investment enrollments', Icon: TrendingUp },
+  { to: '/admin/roth-ira', label: 'Roth IRA enrollments', Icon: PiggyBank },
   { to: '/admin/transactions', label: 'Transactions', Icon: Activity },
   { to: '/admin/fraud', label: 'Fraud alerts', Icon: AlertTriangle },
   { to: '/admin/audit', label: 'Audit log', Icon: FileText },

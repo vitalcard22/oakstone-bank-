@@ -13,6 +13,17 @@ const MIN_DEPOSIT = 500;
 const money = (n: number) =>
   `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+async function ensureHasApprovedCard(userId: string): Promise<void> {
+  const { rows } = await getDb().query(
+    `SELECT 1 FROM credit_cards cc JOIN card_applications ca ON ca.id = cc.application_id
+     WHERE cc.user_id::text = $1::text AND ca.status = 'approved' LIMIT 1`,
+    [userId]
+  );
+  if (!rows.length) {
+    throw new AppError('You need an approved card before you can do this. Please apply for a card to unlock transactions.', 403);
+  }
+}
+
 async function notify(userId: string, title: string, body: string): Promise<void> {
   try {
     await getDb().query('INSERT INTO notifications (user_id, title, body) VALUES ($1,$2,$3)', [userId, title, body]);
@@ -47,6 +58,7 @@ export async function listFixedDeposits(req: Request, res: Response, next: NextF
 // POST /wealth/fixed-deposits   { accountId, principal, termMonths }
 export async function applyFixedDeposit(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const { accountId, principal, termMonths } = req.body;
     const amt = parseFloat(principal);
@@ -282,6 +294,7 @@ export async function contributeSavingsGoal(req: Request, res: Response, next: N
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const { id } = req.params;
     const amt = parseFloat(req.body.amount);
@@ -329,6 +342,7 @@ export async function withdrawSavingsGoal(req: Request, res: Response, next: Nex
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const { id } = req.params;
     const amt = parseFloat(req.body.amount);
@@ -367,6 +381,7 @@ export async function deleteSavingsGoal(req: Request, res: Response, next: NextF
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const { id } = req.params;
     await client.query('BEGIN');
@@ -423,8 +438,8 @@ export async function getIsa(req: Request, res: Response, next: NextFunction): P
     const isa = await loadIsa(userId);
     res.json({
       isa: isa ? {
-        balance: isa.balance, interest_rate: isa.interest_rate,
-        allowance_used: isa.allowance_used, account_number: null,
+        status: isa.status, balance: isa.balance, interest_rate: isa.interest_rate,
+        allowance_used: isa.allowance_used, reject_reason: isa.reject_reason,
       } : null,
       config: { allowance: ISA_ALLOWANCE, rate: ISA_RATE, taxYear: currentTaxYear() },
     });
@@ -436,6 +451,7 @@ export async function contributeIsa(req: Request, res: Response, next: NextFunct
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const { accountId } = req.body;
     const amt = parseFloat(req.body.amount);
@@ -444,11 +460,13 @@ export async function contributeIsa(req: Request, res: Response, next: NextFunct
     await client.query('BEGIN');
 
     let { rows: [isa] } = await client.query('SELECT * FROM isa_accounts WHERE user_id=$1 FOR UPDATE', [userId]);
-    if (isa && isa.tax_year !== currentTaxYear()) {
+    if (!isa) throw new AppError('You are not enrolled in a Roth IRA', 400);
+    if (isa.status !== 'active') throw new AppError('Your Roth IRA enrollment is not active yet', 400);
+    if (isa.tax_year !== currentTaxYear()) {
       await client.query('UPDATE isa_accounts SET allowance_used=0, tax_year=$1 WHERE id=$2', [currentTaxYear(), isa.id]);
       isa.allowance_used = 0;
     }
-    const used = isa ? parseFloat(isa.allowance_used) : 0;
+    const used = parseFloat(isa.allowance_used);
     if (used + amt > ISA_ALLOWANCE) {
       throw new AppError(`That exceeds your annual Roth IRA limit. You have ${money(ISA_ALLOWANCE - used)} remaining.`, 400);
     }
@@ -458,17 +476,7 @@ export async function contributeIsa(req: Request, res: Response, next: NextFunct
     if (parseFloat(acct.available_balance) < amt) throw new AppError('Insufficient available balance', 400);
 
     await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [amt, accountId]);
-
-    if (!isa) {
-      const r = await client.query(
-        `INSERT INTO isa_accounts (user_id, account_id, balance, interest_rate, allowance_used, tax_year)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-        [userId, accountId, amt, ISA_RATE, amt, currentTaxYear()]
-      );
-      isa = r.rows[0];
-    } else {
-      await client.query('UPDATE isa_accounts SET balance=balance+$1, allowance_used=allowance_used+$1, account_id=COALESCE(account_id,$2) WHERE id=$3', [amt, accountId, isa.id]);
-    }
+    await client.query('UPDATE isa_accounts SET balance=balance+$1, allowance_used=allowance_used+$1 WHERE id=$2', [amt, isa.id]);
 
     await client.query(
       `INSERT INTO transactions (id, reference_id, from_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
@@ -488,6 +496,7 @@ export async function withdrawIsa(req: Request, res: Response, next: NextFunctio
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const amt = parseFloat(req.body.amount);
     if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
@@ -495,6 +504,7 @@ export async function withdrawIsa(req: Request, res: Response, next: NextFunctio
 
     const { rows: [isa] } = await client.query('SELECT * FROM isa_accounts WHERE user_id=$1 FOR UPDATE', [userId]);
     if (!isa) throw new AppError('No Roth IRA found', 404);
+    if (isa.status !== 'active') throw new AppError('Your Roth IRA is not active', 400);
     if (parseFloat(isa.balance) < amt) throw new AppError('You cannot withdraw more than your ISA balance', 400);
     if (!isa.account_id) throw new AppError('No linked account to withdraw to', 400);
 
@@ -573,6 +583,7 @@ export async function contributeRetirement(req: Request, res: Response, next: Ne
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const amt = parseFloat(req.body.amount);
     if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
@@ -609,6 +620,7 @@ export async function withdrawRetirement(req: Request, res: Response, next: Next
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const amt = parseFloat(req.body.amount);
     if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
@@ -774,6 +786,7 @@ export async function buyInvestment(req: Request, res: Response, next: NextFunct
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const symbol = String(req.body.symbol || '').toUpperCase();
     const shares = parseFloat(req.body.shares);
@@ -816,6 +829,7 @@ export async function sellInvestment(req: Request, res: Response, next: NextFunc
   const db = getDb();
   const client = await (db as any).connect();
   try {
+    await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const symbol = String(req.body.symbol || '').toUpperCase();
     const shares = parseFloat(req.body.shares);
@@ -952,5 +966,77 @@ export async function getWealthHub(req: Request, res: Response, next: NextFuncti
 
     const total = products.reduce((s, p) => s + p.value, 0);
     res.json({ total, products });
+  } catch (e) { next(e); }
+}
+
+// ── Roth IRA enrollment + admin approval ──
+
+// POST /wealth/isa/enroll   { accountId }
+export async function enrollIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req as any).user.id;
+    const { accountId } = req.body;
+    if (!accountId) throw new AppError('Please choose a funding account', 400);
+    const { rows: [acct] } = await getDb().query('SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [accountId, userId]);
+    if (!acct) throw new AppError('Account not found', 404);
+    const { rows: [existing] } = await getDb().query('SELECT * FROM isa_accounts WHERE user_id=$1', [userId]);
+    if (existing && (existing.status === 'pending' || existing.status === 'active')) {
+      throw new AppError(existing.status === 'active' ? 'You are already enrolled' : 'Your enrollment is already under review', 400);
+    }
+    if (existing) {
+      await getDb().query(`UPDATE isa_accounts SET status='pending', account_id=$1, reject_reason=NULL WHERE id=$2`, [accountId, existing.id]);
+    } else {
+      await getDb().query(
+        `INSERT INTO isa_accounts (user_id, account_id, balance, interest_rate, allowance_used, tax_year, status)
+         VALUES ($1,$2,0,$3,0,$4,'pending')`,
+        [userId, accountId, ISA_RATE, currentTaxYear()]
+      );
+    }
+    await notify(userId, 'Roth IRA enrollment submitted', 'Your Roth IRA enrollment request is under review.');
+    res.status(201).json({ message: 'Enrollment requested' });
+  } catch (e) { next(e); }
+}
+
+// GET /wealth/admin/isa
+export async function adminListIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      `SELECT i.id, i.status, i.balance, i.allowance_used, i.reject_reason, i.created_at, i.approved_at,
+              a.account_number,
+              TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS user_name, u.email
+       FROM isa_accounts i
+       JOIN users u ON u.id = i.user_id
+       LEFT JOIN accounts a ON a.id = i.account_id
+       ORDER BY (i.status='pending') DESC, i.created_at DESC`
+    );
+    res.json(rows);
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/isa/:id/approve
+export async function adminApproveIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params;
+    const { rows: [isa] } = await getDb().query('SELECT * FROM isa_accounts WHERE id=$1', [id]);
+    if (!isa) throw new AppError('Enrollment not found', 404);
+    if (isa.status !== 'pending') throw new AppError('This enrollment is not pending', 400);
+    await getDb().query(`UPDATE isa_accounts SET status='active', approved_at=NOW() WHERE id=$1`, [id]);
+    await notify(isa.user_id, 'Roth IRA enrollment approved', 'Your Roth IRA is active. You can now contribute.');
+    await auditLog({ actorId: adminId, action: 'admin.isa.approve', entityId: id });
+    res.json({ message: 'Approved' });
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/isa/:id/reject   { reason }
+export async function adminRejectIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params; const { reason } = req.body;
+    const { rows: [isa] } = await getDb().query('SELECT * FROM isa_accounts WHERE id=$1', [id]);
+    if (!isa) throw new AppError('Enrollment not found', 404);
+    if (isa.status !== 'pending') throw new AppError('This enrollment is not pending', 400);
+    await getDb().query(`UPDATE isa_accounts SET status='rejected', reject_reason=$1 WHERE id=$2`, [reason || 'Not approved', id]);
+    await notify(isa.user_id, 'Roth IRA enrollment declined', `Your Roth IRA enrollment was declined.${reason ? ' Reason: ' + reason : ''}`);
+    await auditLog({ actorId: adminId, action: 'admin.isa.reject', entityId: id });
+    res.json({ message: 'Rejected' });
   } catch (e) { next(e); }
 }

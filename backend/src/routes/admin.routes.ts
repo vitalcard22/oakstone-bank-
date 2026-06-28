@@ -32,6 +32,8 @@ r.post('/fraud-alerts/:id/resolve',      c.resolveFraudAlert);
 r.get ('/audit-log',                     c.getAuditLog);
 r.get ('/users/:id/accounts',            c.getUserAccounts);
 r.post('/users/:id/accounts',            c.createUserAccount);
+r.post('/users/:id/accounts/:accountId/freeze',   c.freezeAccountAdmin);
+r.post('/users/:id/accounts/:accountId/unfreeze', c.unfreezeAccountAdmin);
 r.get ('/users/:id/transactions',        c.getUserTransactions);
 r.post('/users/:id/credit',              body('accountId').isUUID(), body('amount').isFloat({ min: 0.01 }), validate, c.creditAccount);
 r.post('/users/:id/debit',               body('accountId').isUUID(), body('amount').isFloat({ min: 0.01 }), validate, c.debitAccount);

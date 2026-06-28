@@ -495,3 +495,31 @@ export async function deleteCardApplication(req: Request, res: Response, next: N
     res.json({ message: 'Card application and issued card deleted' });
   } catch (e) { next(e); }
 }
+
+// POST /admin/users/:id/accounts/:accountId/freeze
+export async function freezeAccountAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id, accountId } = req.params;
+    const { rowCount } = await getDb().query(
+      `UPDATE accounts SET status='frozen', updated_at=NOW() WHERE id=$1 AND user_id::text=$2::text AND status='active'`,
+      [accountId, id]
+    );
+    if (!rowCount) throw new AppError('Account not found or not active', 404);
+    await auditLog({ actorId: (req as any).user.id, action: 'admin.account.freeze', entityId: accountId });
+    res.json({ message: 'Account frozen' });
+  } catch (e) { next(e); }
+}
+
+// POST /admin/users/:id/accounts/:accountId/unfreeze
+export async function unfreezeAccountAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id, accountId } = req.params;
+    const { rowCount } = await getDb().query(
+      `UPDATE accounts SET status='active', updated_at=NOW() WHERE id=$1 AND user_id::text=$2::text AND status='frozen'`,
+      [accountId, id]
+    );
+    if (!rowCount) throw new AppError('Account not found or not frozen', 404);
+    await auditLog({ actorId: (req as any).user.id, action: 'admin.account.unfreeze', entityId: accountId });
+    res.json({ message: 'Account unfrozen' });
+  } catch (e) { next(e); }
+}

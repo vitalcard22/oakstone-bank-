@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../services/api";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { PlusCircle, MinusCircle, X, Clock, CreditCard, Hash, UserPlus, Trash2 } from "lucide-react";
+import { PlusCircle, MinusCircle, X, Clock, CreditCard, Hash, UserPlus, Trash2, Snowflake, ShieldCheck } from "lucide-react";
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 
@@ -25,7 +25,7 @@ export default function AdminUsersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [panel, setPanel] = useState<'credit' | 'debit' | 'history' | null>(null);
+  const [panel, setPanel] = useState<'credit' | 'debit' | 'history' | 'accounts' | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
 
@@ -97,7 +97,14 @@ export default function AdminUsersPage() {
     onError: (e: any) => toast.error(e?.response?.data?.message || "Debit failed"),
   });
 
-  const openPanel = (user: any, type: 'credit' | 'debit' | 'history') => {
+  const freezeMut = useMutation({
+    mutationFn: ({ accountId, freeze }: { accountId: string; freeze: boolean }) =>
+      freeze ? adminApi.freezeAccount(selectedUser.id, accountId) : adminApi.unfreezeAccount(selectedUser.id, accountId),
+    onSuccess: (_d, v) => { toast.success(v.freeze ? 'Account frozen' : 'Account unfrozen'); refetchAccounts(); },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed'),
+  });
+
+  const openPanel = (user: any, type: 'credit' | 'debit' | 'history' | 'accounts') => {
     setSelectedUser(user);
     setPanel(type);
     setForm({ ...EMPTY_FORM });
@@ -173,6 +180,10 @@ export default function AdminUsersPage() {
                       className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium">
                       <Clock size={12} /> History
                     </button>
+                    <button onClick={() => openPanel(u, 'accounts')}
+                      className="text-xs text-cyan-600 hover:text-cyan-700 flex items-center gap-1 font-medium">
+                      <Snowflake size={12} /> Freeze
+                    </button>
                     <button onClick={() => setDeleteConfirm(u)}
                       className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 font-medium">
                       <Trash2 size={12} /> Delete
@@ -187,6 +198,46 @@ export default function AdminUsersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Accounts / Freeze Panel */}
+      {panel === 'accounts' && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 rounded-t-2xl bg-cyan-700 text-white flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold">Account access</h2>
+                <p className="text-sm text-cyan-100">{selectedUser.first_name} {selectedUser.last_name}</p>
+              </div>
+              <button onClick={closePanel} className="text-white/80 hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-xs text-gray-400">Freezing an account immediately blocks all outgoing transfers (internal, Zelle, ACH, wire). Incoming credits are unaffected. Unfreeze to restore access.</p>
+              {userAccounts === undefined && <p className="text-sm text-gray-400">Loading accounts…</p>}
+              {userAccounts !== undefined && userAccounts.length === 0 && <p className="text-sm text-gray-400">This user has no accounts.</p>}
+              {userAccounts?.map((a: any) => {
+                const frozen = a.status === 'frozen';
+                return (
+                  <div key={a.id} className="border border-gray-100 rounded-xl p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 text-sm capitalize">{a.account_type} account</p>
+                      <p className="text-xs text-gray-400">No. {a.account_number} · {fmt(Number(a.balance))}</p>
+                      <span className={`inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full ${frozen ? 'bg-red-100 text-red-700' : a.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{a.status}</span>
+                    </div>
+                    {(frozen || a.status === 'active') && (
+                      <button
+                        onClick={() => freezeMut.mutate({ accountId: a.id, freeze: !frozen })}
+                        disabled={freezeMut.isPending}
+                        className={`text-xs font-semibold py-2 px-4 rounded-lg flex items-center gap-1.5 disabled:opacity-50 ${frozen ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}>
+                        {frozen ? <><ShieldCheck size={13} /> Unfreeze</> : <><Snowflake size={13} /> Freeze</>}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
