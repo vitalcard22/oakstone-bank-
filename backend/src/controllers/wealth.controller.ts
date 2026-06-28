@@ -13,6 +13,13 @@ const MIN_DEPOSIT = 500;
 const money = (n: number) =>
   `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+async function ensureAccountActive(q: any, accountId: string): Promise<void> {
+  const { rows } = await q.query('SELECT status FROM accounts WHERE id=$1', [accountId]);
+  if (rows.length && rows[0].status !== 'active') {
+    throw new AppError('This account is frozen. Please contact support to unfreeze it.', 403);
+  }
+}
+
 async function ensureHasApprovedCard(userId: string): Promise<void> {
   const { rows } = await getDb().query(
     `SELECT 1 FROM credit_cards cc JOIN card_applications ca ON ca.id = cc.application_id
@@ -65,6 +72,7 @@ export async function applyFixedDeposit(req: Request, res: Response, next: NextF
     const term = parseInt(termMonths, 10);
 
     if (!accountId) throw new AppError('Please choose a funding account', 400);
+    await ensureAccountActive(getDb(), accountId);
     if (!FD_TERMS[term]) throw new AppError('Invalid term selected', 400);
     if (isNaN(amt) || amt < MIN_DEPOSIT) throw new AppError(`Minimum deposit is ${money(MIN_DEPOSIT)}`, 400);
 
@@ -305,6 +313,7 @@ export async function contributeSavingsGoal(req: Request, res: Response, next: N
       'SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId]
     );
     if (!g) throw new AppError('Goal not found', 404);
+    await ensureAccountActive(client, g.account_id);
 
     const { rows: [acct] } = await client.query(
       'SELECT available_balance FROM accounts WHERE id=$1 FOR UPDATE', [g.account_id]
@@ -353,6 +362,7 @@ export async function withdrawSavingsGoal(req: Request, res: Response, next: Nex
       'SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId]
     );
     if (!g) throw new AppError('Goal not found', 404);
+    await ensureAccountActive(client, g.account_id);
     if (parseFloat(g.saved_amount) < amt) throw new AppError('You cannot withdraw more than you have saved', 400);
 
     await client.query(
@@ -390,6 +400,7 @@ export async function deleteSavingsGoal(req: Request, res: Response, next: NextF
       'SELECT * FROM savings_goals WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId]
     );
     if (!g) throw new AppError('Goal not found', 404);
+    await ensureAccountActive(client, g.account_id);
 
     const saved = parseFloat(g.saved_amount);
     if (saved > 0) {
@@ -475,6 +486,7 @@ export async function contributeIsa(req: Request, res: Response, next: NextFunct
     if (!acct) throw new AppError('Funding account not found', 404);
     if (parseFloat(acct.available_balance) < amt) throw new AppError('Insufficient available balance', 400);
 
+    await ensureAccountActive(client, accountId);
     await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [amt, accountId]);
     await client.query('UPDATE isa_accounts SET balance=balance+$1, allowance_used=allowance_used+$1 WHERE id=$2', [amt, isa.id]);
 
@@ -508,6 +520,7 @@ export async function withdrawIsa(req: Request, res: Response, next: NextFunctio
     if (parseFloat(isa.balance) < amt) throw new AppError('You cannot withdraw more than your ISA balance', 400);
     if (!isa.account_id) throw new AppError('No linked account to withdraw to', 400);
 
+    await ensureAccountActive(client, isa.account_id);
     await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, isa.account_id]);
     await client.query('UPDATE isa_accounts SET balance=balance-$1 WHERE id=$2', [amt, isa.id]);
     await client.query(
@@ -599,6 +612,7 @@ export async function contributeRetirement(req: Request, res: Response, next: Ne
     const { rows: [acct] } = await client.query('SELECT available_balance FROM accounts WHERE id=$1 FOR UPDATE', [plan.account_id]);
     if (!acct || parseFloat(acct.available_balance) < amt) throw new AppError('Insufficient available balance', 400);
 
+    await ensureAccountActive(client, plan.account_id);
     await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [amt, plan.account_id]);
     await client.query('UPDATE retirement_plans SET balance=balance+$1, contribution_used=$2, tax_year=$3 WHERE id=$4',
       [amt, used + amt, curYear(), plan.id]);
@@ -630,6 +644,7 @@ export async function withdrawRetirement(req: Request, res: Response, next: Next
     if (!plan || plan.status !== 'active') throw new AppError('No active 401(k) found', 400);
     if (parseFloat(plan.balance) < amt) throw new AppError('You cannot withdraw more than your 401(k) balance', 400);
 
+    await ensureAccountActive(client, plan.account_id);
     await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, plan.account_id]);
     await client.query('UPDATE retirement_plans SET balance=balance-$1 WHERE id=$2', [amt, plan.id]);
     await client.query(
@@ -802,6 +817,7 @@ export async function buyInvestment(req: Request, res: Response, next: NextFunct
     const { rows: [bank] } = await client.query('SELECT available_balance FROM accounts WHERE id=$1 FOR UPDATE', [inv.account_id]);
     if (!bank || parseFloat(bank.available_balance) < cost) throw new AppError('Insufficient available balance', 400);
 
+    await ensureAccountActive(client, inv.account_id);
     await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [cost, inv.account_id]);
     const { rows: [h] } = await client.query('SELECT * FROM investment_holdings WHERE user_id=$1 AND symbol=$2 FOR UPDATE', [userId, symbol]);
     if (h) {
@@ -845,6 +861,7 @@ export async function sellInvestment(req: Request, res: Response, next: NextFunc
     const proceeds = +(shares * px).toFixed(2);
     const remaining = Number(h.shares) - shares;
 
+    await ensureAccountActive(client, inv.account_id);
     await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [proceeds, inv.account_id]);
     if (remaining > 0.0000001) {
       await client.query('UPDATE investment_holdings SET shares=$1, updated_at=NOW() WHERE id=$2', [remaining, h.id]);

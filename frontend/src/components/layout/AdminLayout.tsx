@@ -47,7 +47,7 @@ export default function AdminLayout() {
 
       {/* Mobile top bar */}
       <header className="md:hidden sticky top-0 z-30 flex items-center justify-between bg-navy-700 px-4 py-3">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/admin/dashboard" className="flex items-center gap-2">
           <img src="/logo.png" alt="Oakstones 1 Bank" className="w-7 h-7 object-contain" />
           <span className="text-white font-semibold text-sm">Oakstones 1 Bank</span>
         </Link>
@@ -66,7 +66,7 @@ export default function AdminLayout() {
           ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
-          <Link to="/" onClick={closeDrawer} className="flex items-center gap-2.5">
+          <Link to="/admin/dashboard" onClick={closeDrawer} className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Oakstones 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
             <div>
               <p className="text-white text-sm font-semibold">Oakstones 1 Bank</p>

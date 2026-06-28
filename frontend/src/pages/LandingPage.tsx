@@ -5,7 +5,9 @@
 //
 // Wire to "/" in your router. Legal pages (privacy/terms/cookies/disclosures) are separate files.
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../stores/auth.store";
 
 const LOGO_SRC = "/logo.png";
 const HERO_SRC = "/hero.jpg";
@@ -85,6 +87,11 @@ const ReserveCard: React.FC = () => (
 const LandingPage: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cookieOk, setCookieOk] = useState(true); // hide unless you wire persistence
+  const navigate = useNavigate();
+  const { isAuthenticated, isAdmin } = useAuthStore();
+  useEffect(() => {
+    if (isAuthenticated()) navigate(isAdmin() ? '/admin/dashboard' : '/dashboard', { replace: true });
+  }, []);
 
   return (
     <div className="ob-root">
