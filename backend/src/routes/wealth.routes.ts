@@ -39,6 +39,9 @@ r.post('/isa/enroll', body('accountId').notEmpty(), validate, c.enrollIsa);
 r.get('/admin/isa', requireAdmin, c.adminListIsa);
 r.post('/admin/isa/:id/approve', requireAdmin, c.adminApproveIsa);
 r.post('/admin/isa/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectIsa);
+r.get('/admin/isa/withdrawals', requireAdmin, c.adminListIsaWithdrawals);
+r.post('/admin/isa/withdrawals/:id/approve', requireAdmin, c.adminApproveIsaWithdrawal);
+r.post('/admin/isa/withdrawals/:id/reject', requireAdmin, body('reason').notEmpty(), validate, c.adminRejectIsaWithdrawal);
 r.post('/isa/contribute', body('accountId').notEmpty(), body('amount').isFloat({ min: 0.01 }), validate, c.contributeIsa);
 r.post('/isa/withdraw', body('amount').isFloat({ min: 0.01 }), validate, c.withdrawIsa);
 

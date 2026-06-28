@@ -447,11 +447,14 @@ export async function getIsa(req: Request, res: Response, next: NextFunction): P
   try {
     const userId = (req as any).user.id;
     const isa = await loadIsa(userId);
+    const { rows: [pw] } = await getDb().query(
+      "SELECT COALESCE(SUM(amount),0) AS pending FROM withdrawal_requests WHERE user_id=$1 AND product='roth_ira' AND status='pending'", [userId]);
     res.json({
       isa: isa ? {
         status: isa.status, balance: isa.balance, interest_rate: isa.interest_rate,
         allowance_used: isa.allowance_used, reject_reason: isa.reject_reason,
       } : null,
+      pendingWithdrawal: Number(pw.pending),
       config: { allowance: ISA_ALLOWANCE, rate: ISA_RATE, taxYear: currentTaxYear() },
     });
   } catch (e) { next(e); }
@@ -503,37 +506,94 @@ export async function contributeIsa(req: Request, res: Response, next: NextFunct
   } finally { client.release(); }
 }
 
-// POST /wealth/isa/withdraw   { amount }
+// POST /wealth/isa/withdraw   { amount }  → creates a withdrawal request for admin approval
 export async function withdrawIsa(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const db = getDb();
-  const client = await (db as any).connect();
   try {
     await ensureHasApprovedCard((req as any).user.id);
     const userId = (req as any).user.id;
     const amt = parseFloat(req.body.amount);
     if (isNaN(amt) || amt <= 0) throw new AppError('Enter a valid amount', 400);
-    await client.query('BEGIN');
 
-    const { rows: [isa] } = await client.query('SELECT * FROM isa_accounts WHERE user_id=$1 FOR UPDATE', [userId]);
+    const { rows: [isa] } = await getDb().query('SELECT * FROM isa_accounts WHERE user_id=$1', [userId]);
     if (!isa) throw new AppError('No Roth IRA found', 404);
     if (isa.status !== 'active') throw new AppError('Your Roth IRA is not active', 400);
-    if (parseFloat(isa.balance) < amt) throw new AppError('You cannot withdraw more than your ISA balance', 400);
     if (!isa.account_id) throw new AppError('No linked account to withdraw to', 400);
+    await ensureAccountActive(getDb(), isa.account_id);
+    if (parseFloat(isa.balance) < amt) throw new AppError('You cannot withdraw more than your Roth IRA balance', 400);
 
-    await ensureAccountActive(client, isa.account_id);
-    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, isa.account_id]);
-    await client.query('UPDATE isa_accounts SET balance=balance-$1 WHERE id=$2', [amt, isa.id]);
+    const { rows: [p] } = await getDb().query(
+      "SELECT COALESCE(SUM(amount),0) AS pending FROM withdrawal_requests WHERE user_id=$1 AND product='roth_ira' AND status='pending'", [userId]);
+    if (parseFloat(p.pending) + amt > parseFloat(isa.balance)) {
+      throw new AppError('You already have pending withdrawal requests covering this balance.', 400);
+    }
+    await getDb().query(
+      "INSERT INTO withdrawal_requests (user_id, product, account_id, amount, status) VALUES ($1,'roth_ira',$2,$3,'pending')",
+      [userId, isa.account_id, amt]
+    );
+    await notify(userId, 'Withdrawal requested', `Your Roth IRA withdrawal of ${money(amt)} is pending approval.`);
+    res.json({ message: 'Withdrawal request submitted for approval' });
+  } catch (e) { next(e); }
+}
+
+// GET /wealth/admin/isa/withdrawals
+export async function adminListIsaWithdrawals(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      `SELECT w.id, w.amount, w.status, w.reject_reason, w.created_at, a.account_number,
+              TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS user_name, u.email
+       FROM withdrawal_requests w
+       JOIN users u ON u.id = w.user_id
+       LEFT JOIN accounts a ON a.id = w.account_id
+       WHERE w.product='roth_ira'
+       ORDER BY (w.status='pending') DESC, w.created_at DESC`
+    );
+    res.json(rows);
+  } catch (e) { next(e); }
+}
+
+// POST /wealth/admin/isa/withdrawals/:id/approve  → executes the withdrawal
+export async function adminApproveIsaWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const db = getDb();
+  const client = await (db as any).connect();
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params;
+    await client.query('BEGIN');
+    const { rows: [w] } = await client.query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='roth_ira' FOR UPDATE", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    const { rows: [isa] } = await client.query('SELECT * FROM isa_accounts WHERE user_id=$1 FOR UPDATE', [w.user_id]);
+    if (!isa || parseFloat(isa.balance) < parseFloat(w.amount)) throw new AppError('Customer no longer has sufficient Roth IRA balance', 400);
+
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [w.amount, w.account_id]);
+    await client.query('UPDATE isa_accounts SET balance=balance-$1 WHERE id=$2', [w.amount, isa.id]);
     await client.query(
       `INSERT INTO transactions (id, reference_id, to_account_id, tx_type, status, amount, description, metadata, processed_at, created_at, updated_at)
        VALUES ($1,$2,$3,'deposit','completed',$4,'Roth IRA withdrawal',$5,NOW(),NOW(),NOW())`,
-      [uuid(), generateRef(), isa.account_id, amt, JSON.stringify({ product: 'isa' })]
+      [uuid(), generateRef(), w.account_id, w.amount, JSON.stringify({ product: 'isa' })]
     );
+    await client.query("UPDATE withdrawal_requests SET status='approved', processed_at=NOW() WHERE id=$1", [id]);
     await client.query('COMMIT');
-    res.json({ message: 'Withdrawn to your account' });
+    await notify(w.user_id, 'Withdrawal approved', `Your Roth IRA withdrawal of ${money(w.amount)} has been approved and paid to your account.`);
+    await auditLog({ actorId: adminId, action: 'admin.isa.withdrawal.approve', entityId: id });
+    res.json({ message: 'Withdrawal approved and paid' });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
   } finally { client.release(); }
+}
+
+// POST /wealth/admin/isa/withdrawals/:id/reject  { reason }
+export async function adminRejectIsaWithdrawal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = (req as any).user.id; const { id } = req.params; const { reason } = req.body;
+    const { rows: [w] } = await getDb().query("SELECT * FROM withdrawal_requests WHERE id=$1 AND product='roth_ira'", [id]);
+    if (!w) throw new AppError('Request not found', 404);
+    if (w.status !== 'pending') throw new AppError('This request is not pending', 400);
+    await getDb().query("UPDATE withdrawal_requests SET status='rejected', reject_reason=$1, processed_at=NOW() WHERE id=$2", [reason || 'Not approved', id]);
+    await notify(w.user_id, 'Withdrawal declined', `Your Roth IRA withdrawal of ${money(w.amount)} was declined.${reason ? ' Reason: ' + reason : ''}`);
+    await auditLog({ actorId: adminId, action: 'admin.isa.withdrawal.reject', entityId: id });
+    res.json({ message: 'Withdrawal rejected' });
+  } catch (e) { next(e); }
 }
 
 // ═══════════════════ 401(k) RETIREMENT PLAN ═══════════════════

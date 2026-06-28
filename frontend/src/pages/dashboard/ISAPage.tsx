@@ -38,12 +38,13 @@ export default function ISAPage() {
   const pct = (used / allowance) * 100;
   const projectedInterest = balance * (rate / 100);
   const amt = parseFloat(amount) || 0;
+  const pendingWithdrawal = Number(data?.pendingWithdrawal ?? 0);
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['isa'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); };
 
   const enrollMut = useMutation({ mutationFn: () => wealthApi.enrollIsa(accountId), onSuccess: () => { refresh(); toast.success('Enrollment requested'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
   const addMut = useMutation({ mutationFn: () => wealthApi.contributeIsa({ accountId, amount: amt }), onSuccess: () => { refresh(); setAmount(''); toast.success('Added to your Roth IRA'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
-  const wMut = useMutation({ mutationFn: () => wealthApi.withdrawIsa(amt), onSuccess: () => { refresh(); setAmount(''); toast.success('Withdrawn to your account'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
+  const wMut = useMutation({ mutationFn: () => wealthApi.withdrawIsa(amt), onSuccess: () => { refresh(); setAmount(''); toast.success('Withdrawal request submitted for approval'); }, onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed') });
 
   if (isLoading) return <p className="text-sm text-gray-400">Loading…</p>;
 
@@ -116,6 +117,12 @@ export default function ISAPage() {
       {/* ACTIVE */}
       {status === 'active' && (
         <>
+          {pendingWithdrawal > 0 && (
+            <div className="card p-4 flex items-start gap-3 border-amber-200 bg-amber-50">
+              <Clock className="text-amber-500 flex-shrink-0 mt-0.5" size={18} />
+              <div><p className="font-medium text-gray-900 text-sm">Withdrawal pending approval</p><p className="text-xs text-gray-500">{fmt(pendingWithdrawal)} is awaiting admin approval before it reaches your account.</p></div>
+            </div>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
               { label: 'Annual allowance', value: fmt(allowance), sub: `Tax year ${data?.config?.taxYear ?? ''}` },
@@ -139,10 +146,10 @@ export default function ISAPage() {
             )}
             <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
             <input type="text" inputMode="decimal" value={amount} placeholder="0.00" onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, ''))} className="input w-full mb-2" />
-            {mode === 'add' ? <p className="text-xs text-gray-400 mb-4">{fmt(remaining)} of your allowance remaining this tax year.</p> : <p className="text-xs text-gray-400 mb-4">{fmt(balance)} available to withdraw.</p>}
+            {mode === 'add' ? <p className="text-xs text-gray-400 mb-4">{fmt(remaining)} of your allowance remaining this tax year.</p> : <p className="text-xs text-gray-400 mb-4">{fmt(balance)} available. Withdrawals are reviewed by an administrator before payout.</p>}
             {mode === 'add'
               ? <button onClick={() => { if (!accountId) { toast.error('Choose an account'); return; } if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > remaining) { toast.error('Exceeds your remaining allowance'); return; } addMut.mutate(); }} disabled={addMut.isPending} className="btn-primary w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-50">{addMut.isPending ? 'Adding…' : 'Add to Roth IRA'}</button>
-              : <button onClick={() => { if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > balance) { toast.error('More than your balance'); return; } wMut.mutate(); }} disabled={wMut.isPending} className="btn-primary w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-50">{wMut.isPending ? 'Withdrawing…' : 'Withdraw from Roth IRA'}</button>}
+              : <button onClick={() => { if (amt <= 0) { toast.error('Enter an amount'); return; } if (amt > balance) { toast.error('More than your balance'); return; } wMut.mutate(); }} disabled={wMut.isPending} className="btn-primary w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-50">{wMut.isPending ? 'Submitting…' : 'Request withdrawal'}</button>}
             <p className="text-xs text-gray-400 mt-3 flex items-start gap-1.5"><ShieldCheck size={13} className="flex-shrink-0 mt-0.5 text-purple-600" />Earnings in your Roth IRA grow tax-free. You can contribute up to {fmt(allowance)} each tax year.</p>
           </div>
         </>
