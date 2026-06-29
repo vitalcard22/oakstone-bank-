@@ -89,10 +89,7 @@ export default function AppLayout() {
         <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
           <Link to="/dashboard" onClick={closeDrawer} className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Oakstones 1 Bank" className="w-8 h-8 object-contain flex-shrink-0" />
-            <div>
-              <p className="text-white font-semibold text-sm leading-tight">Oakstones 1 Bank</p>
-              <p className="text-emerald-400 text-xs">Prototype</p>
-            </div>
+            <p className="text-white font-semibold text-sm leading-tight">Oakstones 1 Bank</p>
           </Link>
           <button onClick={closeDrawer} aria-label="Close menu" className="md:hidden text-white/70 hover:text-white p-1">
             <X size={20} />

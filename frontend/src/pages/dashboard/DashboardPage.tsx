@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { accountApi, txApi } from '../../services/api';
+import { accountApi, txApi, authApi } from '../../services/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
@@ -33,6 +33,14 @@ export default function DashboardPage() {
     queryKey: ['dashboard-recent-tx'],
     queryFn:  () => txApi.history().then((r) => r.data),
   });
+
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn:  () => authApi.getMe().then((r) => r.data),
+  });
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const firstName = me?.first_name ? me.first_name.charAt(0).toUpperCase() + me.first_name.slice(1) : '';
   const recent = (txData?.transactions ?? []).slice(0, 6);
 
   // Real cash flow: last 6 months, income (money in) vs spending (money out).
@@ -59,6 +67,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">{greeting}{firstName ? `, ${firstName}` : ''}</h1>
+        <p className="text-sm text-gray-400">Here's an overview of your accounts.</p>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {label:'System status',    value:'Operational', dot:'bg-green-400'},
