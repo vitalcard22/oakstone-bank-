@@ -58,9 +58,13 @@ export async function sendTransactionCode(to: string, code: string, summary: str
        <div style="display:inline-block;background:#F7FBF8;border:1px solid #E9E3D4;border-radius:10px;padding:18px 32px;font-family:'Courier New',monospace;font-size:34px;letter-spacing:10px;color:#1F6B4A;font-weight:700;">${code}</div>
      </div>
      <p style="font-size:14px;line-height:1.6;margin:0 0 8px;color:#1F2937;font-weight:600;">${summary}</p>
-     <p style="font-size:14px;line-height:1.6;margin:0;color:#6b6a60;">This code expires in 10 minutes. If you did not request this transfer, do not share this code and contact support immediately.</p>`
+     <p style="font-size:14px;line-height:1.6;margin:0 0 16px;color:#6b6a60;">This code expires in 10 minutes.</p>
+     <div style="background:#FEF6F6;border:1px solid #F3D6D6;border-radius:10px;padding:14px 18px;margin:0;">
+       <p style="font-size:13px;line-height:1.6;margin:0 0 6px;color:#9B2C2C;font-weight:700;">Protect yourself from scams</p>
+       <p style="font-size:13px;line-height:1.6;margin:0;color:#7A4A4A;">Oakstones 1 Bank will <strong>never</strong> call, text, or email you to ask for this code. Do not share it with anyone. If someone is requesting this code or asking you to move money to "protect" your account, it is a scam — end the conversation and contact us using the number on the back of your card.</p>
+     </div>`
   );
-  const text = `Your Oakstones 1 Bank transfer confirmation code is: ${code}\n\n${summary}\n\nThis code expires in 10 minutes. If you did not request this transfer, contact support.`;
+  const text = `Your Oakstones 1 Bank transfer confirmation code is: ${code}\n\n${summary}\n\nThis code expires in 10 minutes.\n\nPROTECT YOURSELF FROM SCAMS: Oakstones 1 Bank will never call, text, or email you to ask for this code. Do not share it with anyone. If someone is requesting this code or asking you to move money to "protect" your account, it is a scam — end the conversation and contact us.`;
   await send(to, `${code} is your Oakstones 1 Bank transfer code`, html, text);
 }
 
@@ -72,9 +76,12 @@ export async function sendTransactionAlert(to: string, title: string, body: stri
     `<p style="font-size:16px;line-height:1.6;margin:0 0 6px;color:#1F2937;">${body}</p>
      <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#6b6a60;">${stamp}</p>
      ${balanceLine ? `<div style="background:#F7FBF8;border:1px solid #E9E3D4;border-radius:10px;padding:14px 18px;margin:0 0 16px;font-size:15px;color:#1F2937;font-weight:600;">${balanceLine}</div>` : ''}
-     <p style="font-size:13px;line-height:1.6;margin:0;color:#6b6a60;">This is an automated alert for activity on your Oakstones 1 Bank account. If you don't recognize this activity, please contact us right away.</p>`
+     <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#6b6a60;">This is an automated alert for activity on your Oakstones 1 Bank account. If you don't recognize this activity, please contact us right away.</p>
+     <div style="background:#FEF6F6;border:1px solid #F3D6D6;border-radius:10px;padding:14px 18px;margin:0;">
+       <p style="font-size:13px;line-height:1.6;margin:0;color:#7A4A4A;">Oakstones 1 Bank will <strong>never</strong> ask you to share a code or move money to "protect" or "verify" your account. If someone asks you to do this, it is a scam.</p>
+     </div>`
   );
-  const text = `Account activity alert\n\n${body}\n${stamp}${balanceLine ? `\n${balanceLine}` : ''}\n\nThis is an automated alert for activity on your Oakstones 1 Bank account. If you don't recognize this activity, please contact us right away.`;
+  const text = `Account activity alert\n\n${body}\n${stamp}${balanceLine ? `\n${balanceLine}` : ''}\n\nThis is an automated alert for activity on your Oakstones 1 Bank account. If you don't recognize this activity, please contact us right away.\n\nOakstones 1 Bank will never ask you to share a code or move money to "protect" or "verify" your account. If someone asks you to do this, it is a scam.`;
   await send(to, title, html, text);
 }
 

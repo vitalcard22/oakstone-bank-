@@ -153,6 +153,16 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 }
 
 // POST /auth/login/verify-code
+// Record a successful login for the user's security history (non-blocking).
+async function recordLogin(userId: string, req: Request): Promise<void> {
+  try {
+    await getDb().query(
+      'INSERT INTO login_events (user_id, ip, user_agent) VALUES ($1,$2,$3)',
+      [userId, req.ip ?? null, (req.headers['user-agent'] as string) ?? null]
+    );
+  } catch (e) { console.error('[login_events] failed:', e); }
+}
+
 export async function completeLoginCode(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const db = getDb();
@@ -198,6 +208,7 @@ export async function completeLoginCode(req: Request, res: Response, next: NextF
     });
 
     await auditLog({ actorId: payload.sub, action: 'auth.login', ip: req.ip });
+    await recordLogin(payload.sub, req);
     res.json({ accessToken, user: { id: payload.sub, role: payload.role } });
   } catch (e) {
     next(e);
@@ -250,6 +261,7 @@ export async function completeMfa(req: Request, res: Response, next: NextFunctio
       maxAge: REFRESH_TTL_SECS * 1000,
     });
 
+    await recordLogin(payload.sub, req);
     res.json({ accessToken, user: { id: payload.sub, role: rows[0].role } });
   } catch (e) {
     next(e);
@@ -316,7 +328,7 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
 export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { rows } = await getDb().query(
-      `SELECT id, email, phone, first_name, last_name, role, kyc_status, mfa_enabled, created_at
+      `SELECT id, email, phone, first_name, last_name, role, kyc_status, mfa_enabled, email_verified, is_active, last_login_at, created_at
        FROM users WHERE id=$1`,
       [(req as any).user.id]
     );
@@ -427,6 +439,18 @@ export async function verifyEmail(req: Request, res: Response, next: NextFunctio
       [rows[0].id]
     );
     res.json({ message: 'Email verified successfully' });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getLoginHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { rows } = await getDb().query(
+      'SELECT id, ip, user_agent, created_at FROM login_events WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20',
+      [(req as any).user.id]
+    );
+    res.json(rows);
   } catch (e) {
     next(e);
   }

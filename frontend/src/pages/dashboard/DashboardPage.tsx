@@ -14,12 +14,6 @@ const TYPE_LABEL: Record<string, string> = {
 };
 const timeLabel = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-const spendData = [
-  {month:'Jan',income:5800,spend:3200},{month:'Feb',income:5800,spend:2900},
-  {month:'Mar',income:6200,spend:4100},{month:'Apr',income:5800,spend:3500},
-  {month:'May',income:5800,spend:2800},{month:'Jun',income:6500,spend:3900},
-];
-
 export default function DashboardPage() {
   const [events, setEvents] = useState<any[]>([]);
 
@@ -40,6 +34,26 @@ export default function DashboardPage() {
     queryFn:  () => txApi.history().then((r) => r.data),
   });
   const recent = (txData?.transactions ?? []).slice(0, 6);
+
+  // Real cash flow: last 6 months, income (money in) vs spending (money out).
+  // Internal transfers (own → own) are neutral and excluded.
+  const now = new Date();
+  const buckets = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    return { key: `${d.getFullYear()}-${d.getMonth()}`, month: d.toLocaleString('en-US', { month: 'short' }), income: 0, spend: 0 };
+  });
+  const bIdx: Record<string, number> = {};
+  buckets.forEach((b, i) => { bIdx[b.key] = i; });
+  for (const t of (txData?.transactions ?? [])) {
+    if (t.status !== 'completed' || t.tx_type === 'transfer') continue;
+    const d = new Date(t.created_at);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    if (!(key in bIdx)) continue;
+    const amt = parseFloat(t.amount) || 0;
+    if (t.outgoing) buckets[bIdx[key]].spend += amt; else buckets[bIdx[key]].income += amt;
+  }
+  const thisMonth = buckets[buckets.length - 1];
+  const net = thisMonth.income - thisMonth.spend;
 
   const total = accounts?.reduce((s: number, a: any) => s + parseFloat(a.balance), 0) ?? 0;
 
@@ -128,7 +142,7 @@ export default function DashboardPage() {
         <h2 className="font-semibold text-gray-900 mb-1">Cash flow</h2>
         <p className="text-sm text-gray-400 mb-5">Income vs spending — last 6 months</p>
         <ResponsiveContainer width="100%" height={180}>
-          <AreaChart data={spendData}>
+          <AreaChart data={buckets}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
             <XAxis dataKey="month" tick={{fontSize:11,fill:'#9ca3af'}} axisLine={false} tickLine={false}/>
             <YAxis tick={{fontSize:11,fill:'#9ca3af',fontFamily:'JetBrains Mono'}} axisLine={false} tickLine={false} tickFormatter={(v)=>`$${(v/1000).toFixed(0)}k`}/>
@@ -154,24 +168,22 @@ export default function DashboardPage() {
         </div>
 
         <div className="card p-5">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Account health</p>
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-4">This month ({thisMonth.month})</p>
           <div className="space-y-4">
-            {[
-              {label:'Account health',     value:87,'color':'bg-green-500'},
-              {label:'Credit utilization', value:23,'color':'bg-navy-500'},
-              {label:'Savings rate',       value:61,'color':'bg-gold-500'},
-            ].map((m) => (
-              <div key={m.label}>
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>{m.label}</span>
-                  <span className="font-mono text-gray-900">{m.value}</span>
-                </div>
-                <div className="h-1.5 bg-gray-100 rounded-full">
-                  <div className={`h-1.5 rounded-full ${m.color}`} style={{width:`${m.value}%`}}/>
-                </div>
-              </div>
-            ))}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Money in</span>
+              <span className="font-mono font-semibold text-green-600">+{fmt(thisMonth.income)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Money out</span>
+              <span className="font-mono font-semibold text-gray-900">-{fmt(thisMonth.spend)}</span>
+            </div>
+            <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+              <span className="text-sm font-medium text-gray-700">Net</span>
+              <span className={`font-mono font-semibold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>{net >= 0 ? '+' : '-'}{fmt(Math.abs(net))}</span>
+            </div>
           </div>
+          <p className="text-[11px] text-gray-400 mt-4">Excludes transfers between your own accounts.</p>
         </div>
       </div>
     </div>

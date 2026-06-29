@@ -1,106 +1,97 @@
-import { ShieldCheck, Smartphone, Key, AlertTriangle, CheckCircle, Globe } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { authApi } from '../../services/api';
+import { ShieldCheck, ShieldAlert, Mail, BadgeCheck, KeyRound, Monitor } from 'lucide-react';
 
-const SESSIONS = [
-  { device: 'Chrome on Windows 11', location: 'Lagos, Nigeria', time: 'Active now', current: true },
-  { device: 'Safari on iPhone', location: 'Lagos, Nigeria', time: '2 hours ago', current: false },
-  { device: 'Chrome on Windows 11', location: 'Abuja, Nigeria', time: 'Yesterday 4:32 PM', current: false },
-];
+// Parse a rough "Browser on OS" label from a user-agent string (best-effort, real data).
+function deviceLabel(ua?: string): string {
+  if (!ua) return 'Unknown device';
+  const os = /Windows/i.test(ua) ? 'Windows'
+    : /iPhone|iPad|iOS/i.test(ua) ? 'iOS'
+    : /Android/i.test(ua) ? 'Android'
+    : /Mac OS X|Macintosh/i.test(ua) ? 'macOS'
+    : /Linux/i.test(ua) ? 'Linux' : 'Unknown OS';
+  const browser = /Edg/i.test(ua) ? 'Edge'
+    : /Chrome/i.test(ua) ? 'Chrome'
+    : /Firefox/i.test(ua) ? 'Firefox'
+    : /Safari/i.test(ua) ? 'Safari' : 'Browser';
+  return `${browser} on ${os}`;
+}
 
+const when = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export default function SecurityPage() {
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: () => authApi.getMe().then(r => r.data) });
+  const { data: history } = useQuery({ queryKey: ['login-history'], queryFn: () => authApi.loginHistory().then(r => r.data) });
+
+  const kyc = me?.kyc_status as string | undefined;
+  const kycLabel = kyc === 'approved' ? 'Verified'
+    : kyc === 'under_review' ? 'Under review'
+    : kyc === 'rejected' ? 'Rejected' : 'Pending';
+  const kycOk = kyc === 'approved';
+
+  const items = [
+    { icon: ShieldCheck, label: 'Two-step verification', value: 'On', sub: 'A one-time code is emailed to you at every sign-in.', ok: true },
+    { icon: KeyRound,    label: 'Authenticator app', value: me?.mfa_enabled ? 'On' : 'Off', sub: me?.mfa_enabled ? 'Time-based codes are enabled.' : 'Optional extra layer using an authenticator app.', ok: !!me?.mfa_enabled },
+    { icon: Mail,        label: 'Email verified', value: me?.email_verified ? 'Verified' : 'Not verified', sub: me?.email ?? '', ok: !!me?.email_verified },
+    { icon: BadgeCheck,  label: 'Identity verification (KYC)', value: kycLabel, sub: 'Required to unlock full account features.', ok: kycOk },
+    { icon: me?.is_active === false ? ShieldAlert : ShieldCheck, label: 'Account status', value: me?.is_active === false ? 'Restricted' : 'Active', sub: me?.is_active === false ? 'Contact support to restore full access.' : 'Your account is in good standing.', ok: me?.is_active !== false },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Security Center</h1>
-        <p className="text-sm text-gray-400">Manage your account security and review activity</p>
+        <h1 className="text-xl font-semibold text-gray-900">Security</h1>
+        <p className="text-sm text-gray-400">Your sign-in protections and recent account access.</p>
       </div>
 
-      {/* Security score */}
-      <div className="bg-gradient-to-br from-emerald-800 to-emerald-600 rounded-2xl p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-emerald-300 text-sm mb-1">Security score</p>
-            <p className="text-4xl font-bold mb-2">85 / 100</p>
-            <p className="text-emerald-200 text-sm">Your account is well protected</p>
-          </div>
-          <div className="w-24 h-24 rounded-full border-4 border-emerald-400 flex items-center justify-center">
-            <ShieldCheck size={40} className="text-emerald-300" />
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {[
-            { label: '2FA enabled', done: true },
-            { label: 'Email verified', done: true },
-            { label: 'Strong password', done: true },
-            { label: 'Recovery email', done: false },
-            { label: 'Trusted devices', done: false },
-            { label: 'Biometric login', done: false },
-          ].map(s => (
-            <div key={s.label} className="flex items-center gap-2">
-              {s.done
-                ? <CheckCircle size={14} className="text-emerald-300" />
-                : <AlertTriangle size={14} className="text-amber-400" />
-              }
-              <span className={`text-xs ${s.done ? 'text-emerald-200' : 'text-amber-300'}`}>{s.label}</span>
+      {/* Real security status */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {items.map((it) => {
+          const Icon = it.icon;
+          return (
+            <div key={it.label} className="card p-5 flex items-start gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${it.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                <Icon size={18} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-gray-900 text-sm">{it.label}</p>
+                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${it.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{it.value}</span>
+                </div>
+                {it.sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{it.sub}</p>}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        {/* Security settings */}
-        <div className="space-y-4">
-          <div className="card p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Security settings</h2>
-            <div className="space-y-4">
-              {[
-                { icon: Smartphone, label: 'Two-factor authentication', sub: 'Email code required at login', enabled: true },
-                { icon: Key, label: 'Password', sub: 'Last changed 30 days ago', enabled: null },
-                { icon: Globe, label: 'Trusted locations', sub: 'Lagos, Nigeria', enabled: true },
-              ].map(s => (
-                <div key={s.label} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <s.icon size={16} className="text-gray-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{s.label}</p>
-                      <p className="text-xs text-gray-400">{s.sub}</p>
-                    </div>
-                  </div>
-                  {s.enabled === null
-                    ? <button className="text-xs text-emerald-700 font-medium hover:underline">Change</button>
-                    : <div className={`w-9 h-5 rounded-full transition-colors relative ${s.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${s.enabled ? 'left-4' : 'left-0.5'}`} />
-                      </div>
-                  }
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Active sessions */}
-          <div className="card p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Active sessions</h2>
-            <div className="space-y-3">
-              {SESSIONS.map((s, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">{s.device}</p>
-                      {s.current && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Current</span>}
-                    </div>
-                    <p className="text-xs text-gray-400">{s.location} · {s.time}</p>
-                  </div>
-                  {!s.current && (
-                    <button className="text-xs text-red-500 hover:text-red-600 font-medium">Revoke</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Real login history */}
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Monitor size={16} className="text-gray-400" />
+          <h2 className="font-semibold text-gray-900">Recent sign-ins</h2>
         </div>
+        <p className="text-sm text-gray-400 mb-4">The most recent times your account was accessed.</p>
 
+        {(!history || history.length === 0) ? (
+          <p className="text-sm text-gray-400 text-center py-8">No sign-in activity recorded yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {history.map((h: any, i: number) => (
+              <div key={h.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {deviceLabel(h.user_agent)}
+                    {i === 0 && <span className="ml-2 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Most recent</span>}
+                  </p>
+                  <p className="text-xs text-gray-400 truncate">{when(h.created_at)}{h.ip ? ` · ${h.ip}` : ''}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-gray-400 mt-4">If you don't recognize a sign-in, change your password and contact us. Oakstones 1 Bank will never ask you to share a code.</p>
       </div>
     </div>
   );

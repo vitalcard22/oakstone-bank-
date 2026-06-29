@@ -59,6 +59,7 @@ export const authApi = {
   completeMfa: (data: any) => api.post('/auth/mfa/complete', data),
   logout: () => api.post('/auth/logout'),
   getMe: () => api.get('/auth/me'),
+  loginHistory: () => api.get('/auth/login-history'),
   updateMe: (data: any) => api.patch('/auth/me', data),
   setupMfa: () => api.post('/auth/mfa/setup'),
   verifyMfa: (data: any) => api.post('/auth/mfa/verify', data),
