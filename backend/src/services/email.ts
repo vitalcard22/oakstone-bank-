@@ -51,6 +51,19 @@ export async function sendLoginCode(to: string, code: string): Promise<void> {
   await send(to, `${code} is your Oakstones 1 Bank sign-in code`, html, text);
 }
 
+export async function sendTransactionCode(to: string, code: string, summary: string): Promise<void> {
+  const html = brandShell('Confirm your transfer',
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Use the code below to authorize this transfer from your Oakstones 1 Bank account.</p>
+     <div style="text-align:center;margin:24px 0;">
+       <div style="display:inline-block;background:#F7FBF8;border:1px solid #E9E3D4;border-radius:10px;padding:18px 32px;font-family:'Courier New',monospace;font-size:34px;letter-spacing:10px;color:#1F6B4A;font-weight:700;">${code}</div>
+     </div>
+     <p style="font-size:14px;line-height:1.6;margin:0 0 8px;color:#1F2937;font-weight:600;">${summary}</p>
+     <p style="font-size:14px;line-height:1.6;margin:0;color:#6b6a60;">This code expires in 10 minutes. If you did not request this transfer, do not share this code and contact support immediately.</p>`
+  );
+  const text = `Your Oakstones 1 Bank transfer confirmation code is: ${code}\n\n${summary}\n\nThis code expires in 10 minutes. If you did not request this transfer, contact support.`;
+  await send(to, `${code} is your Oakstones 1 Bank transfer code`, html, text);
+}
+
 export async function sendVerificationEmail(to: string, firstName: string, verifyUrl: string): Promise<void> {
   const html = brandShell('Verify your email',
     `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>

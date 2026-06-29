@@ -83,6 +83,7 @@ export const txApi = {
   zelle: (data: any) => api.post('/transactions/zelle', data),
   ach: (data: any) => api.post('/transactions/ach', data),
   wire: (data: any) => api.post('/transactions/wire', data),
+  wireConfirm: (data: any) => api.post('/transactions/wire/confirm', data),
   config: () => api.get('/transactions/config'),
   zelleLookup: (identifier: string) => api.get('/transactions/zelle/lookup', { params: { identifier } }),
   get: (id: string) => api.get(`/transactions/${id}`),

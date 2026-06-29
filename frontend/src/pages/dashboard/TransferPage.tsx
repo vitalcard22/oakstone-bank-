@@ -28,7 +28,9 @@ const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { mini
 
 export default function TransferPage() {
   const [tab, setTab] = useState('transfer');
-  const [step, setStep] = useState<'form' | 'review'>('form');
+  const [step, setStep] = useState<'form' | 'review' | 'code'>('form');
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const [review, setReview] = useState<any>(null);
   const [zelleName, setZelleName] = useState<string | null>(null);
   const [zelleNotFound, setZelleNotFound] = useState(false);
@@ -44,17 +46,26 @@ export default function TransferPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<any>();
 
-  const switchTab = (key: string) => { setTab(key); setStep('form'); setReview(null); setZelleName(null); setZelleNotFound(false); reset(); };
+  const switchTab = (key: string) => { setTab(key); setStep('form'); setReview(null); setZelleName(null); setZelleNotFound(false); setChallengeToken(null); setCode(''); reset(); };
 
   const mut = useMutation({
     mutationFn: (payload: any) => (txApi as any)[tab](payload),
     onSuccess: (res: any) => {
+      if (res?.data?.requiresCode) {
+        setChallengeToken(res.data.challengeToken);
+        setCode('');
+        setStep('code');
+        toast.success('We emailed you a confirmation code');
+        return;
+      }
       qc.invalidateQueries({ queryKey: ['accounts'] });
       const txId = res?.data?.transactionId;
       setStep('form');
       setReview(null);
       setZelleName(null);
       setZelleNotFound(false);
+      setChallengeToken(null);
+      setCode('');
       reset();
       if (txId) {
         navigate(`/transfer/receipt/${txId}`);
@@ -63,6 +74,18 @@ export default function TransferPage() {
       }
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? e?.response?.data?.error ?? 'Transfer failed'),
+  });
+
+  const confirmMut = useMutation({
+    mutationFn: (payload: any) => (txApi as any)[`${tab}Confirm`](payload),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      const txId = res?.data?.transactionId;
+      setStep('form'); setReview(null); setZelleName(null); setZelleNotFound(false); setChallengeToken(null); setCode(''); reset();
+      if (txId) navigate(`/transfer/receipt/${txId}`);
+      else toast.success('Transfer completed successfully');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? e?.response?.data?.error ?? 'Incorrect or expired code'),
   });
 
   // Build the exact request body the backend expects for each transfer type.
@@ -381,6 +404,36 @@ export default function TransferPage() {
               {mut.isPending ? 'Sending...' : 'Confirm & send'}
             </button>
           </div>
+        </div>
+      )}
+
+      {step === 'code' && (
+        <div className="card p-6 max-w-md mx-auto">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Confirm your transfer</h2>
+          <p className="text-sm text-gray-500 mb-5">For your security, we emailed a 6-digit code to confirm this transfer. Enter it below to send.</p>
+          <input
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric"
+            placeholder="······"
+            className="input text-center text-2xl tracking-[0.5em] font-mono mb-1"
+          />
+          <p className="text-xs text-gray-400 mb-5">The code expires in 10 minutes.</p>
+          <div className="flex gap-3">
+            <button onClick={() => { setStep('review'); setCode(''); setChallengeToken(null); }} disabled={confirmMut.isPending} className="flex-1 py-3 rounded-md border border-gray-200 text-sm font-medium hover:bg-gray-50">
+              Back
+            </button>
+            <button
+              onClick={() => { if (code.length !== 6) { toast.error('Enter the 6-digit code'); return; } confirmMut.mutate({ challengeToken, code }); }}
+              disabled={confirmMut.isPending || code.length !== 6}
+              className="btn-primary flex-1 py-3 disabled:opacity-50"
+            >
+              {confirmMut.isPending ? 'Verifying...' : 'Verify & send'}
+            </button>
+          </div>
+          <button onClick={() => mut.mutate(buildPayload(review))} disabled={mut.isPending} className="w-full mt-4 text-sm text-emerald-700 hover:underline">
+            Didn't get it? Resend code
+          </button>
         </div>
       )}
     </div>

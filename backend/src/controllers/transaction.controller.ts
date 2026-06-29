@@ -6,6 +6,10 @@ import { generateRef } from '../utils/helpers';
 import { auditLog } from '../utils/audit';
 import { runFraudCheck } from '../services/fraud';
 import { emitToUser, emitAdmin } from '../services/websocket';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { getRedis } from '../config/redis';
+import { sendTransactionCode } from '../services/email';
 
 // Persist an in-app notification (non-fatal — never blocks the transaction).
 const fmtMoney = (n: number) =>
@@ -308,14 +312,62 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
 }
 
 // POST /transactions/wire — wire transfer
-export async function wireTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
+// Shared executor — performs the actual wire once a confirmation code is verified.
+async function executeWire(userId: string, action: any, ip: string | undefined): Promise<{ transactionId: string; referenceId: string }> {
   const db     = getDb();
   const client = await (db as any).connect();
   try {
+    await client.query('BEGIN');
+    const { fromAccountId, amount, recipient } = action;
+    const amt = parseFloat(amount);
+    const fee = TX_FEES.wire;
+
+    const { rows: [from] } = await client.query(
+      'SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE',
+      [fromAccountId, userId]
+    );
+    if (!from) throw new AppError('Source account not found', 404);
+    if (from.status !== 'active') throw new AppError('Account is not active', 400);
+    if (parseFloat(from.available_balance) < amt + fee) throw new AppError('Insufficient funds to cover the wire amount plus the wire fee', 400);
+
+    await client.query(
+      'UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2',
+      [amt + fee, fromAccountId]
+    );
+
+    const refId = generateRef();
+    const txId  = uuid();
+    await client.query(
+      `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
+       VALUES ($1,$2,$3,'wire','completed',$4,$5,$6)`,
+      [txId, refId, fromAccountId, amt, JSON.stringify({ recipient, fee }), ip]
+    );
+    if (fee > 0) {
+      await client.query(
+        `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,description,metadata,ip_address)
+         VALUES ($1,$2,$3,'fee','completed',$4,$5,$6,$7)`,
+        [uuid(), generateRef(), fromAccountId, fee, 'Wire transfer fee', JSON.stringify({ wireRef: refId }), ip]
+      );
+    }
+    await client.query('COMMIT');
+
+    await auditLog({ actorId: userId, action: 'transaction.wire', entityId: txId });
+    emitToUser(userId, 'transaction', { type: 'wire', amount: amt, refId, status: 'completed' });
+    await notify(userId, 'Wire sent', `You sent ${fmtMoney(amt)} via wire to ${recipient?.name ?? 'recipient'}.`);
+    return { transactionId: txId, referenceId: refId };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+// POST /transactions/wire  → validates, emails a confirmation code, holds the wire (does NOT send yet)
+export async function wireTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
     const userId = (req as any).user.id;
     await ensureCanSendMoney(userId);
-
-    await client.query('BEGIN');
 
     const { fromAccountId, amount, recipient } = req.body;
     const amt = parseFloat(amount);
@@ -327,52 +379,69 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
     }
 
     const fee = TX_FEES.wire;
-
-    // Verify ownership and reserve funds (amount + fee)
-    const { rows: [from] } = await client.query(
-      'SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE',
+    const { rows: [from] } = await getDb().query(
+      'SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2',
       [fromAccountId, userId]
     );
     if (!from) throw new AppError('Source account not found', 404);
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
     if (parseFloat(from.available_balance) < amt + fee) throw new AppError('Insufficient funds to cover the wire amount plus the wire fee', 400);
 
-    // Debit the full wire amount + fee from the account immediately.
-    await client.query(
-      'UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2',
-      [amt + fee, fromAccountId]
-    );
+    // Generate a one-time code, store the validated action server-side, email the code.
+    const redis = getRedis();
+    const tid   = uuid();
+    const code  = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(code, 8);
+    const action = { type: 'wire', fromAccountId, amount: amt, recipient };
+    await redis.setEx(`txcode:${tid}`, 600, JSON.stringify({ userId, hash: codeHash, attempts: 0, action }));
 
-    const refId = generateRef();
-    const txId  = uuid();
+    const challengeToken = jwt.sign({ sub: userId, tid, type: 'tx_code' }, process.env.JWT_SECRET!, { expiresIn: '10m' });
 
-    await client.query(
-      `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
-       VALUES ($1,$2,$3,'wire','completed',$4,$5,$6)`,
-      [txId, refId, fromAccountId, amt, JSON.stringify({ recipient, fee }), req.ip]
-    );
+    const { rows: [u] } = await getDb().query('SELECT email FROM users WHERE id=$1', [userId]);
+    const summary = `Wire of ${fmtMoney(amt)} to ${recipient.name} at ${recipient.bankName}.`;
+    if (u?.email) sendTransactionCode(u.email, code, summary).catch((e) => console.error('[Email] tx code failed:', e?.message));
 
-    // Record the wire fee as its own completed transaction so it shows in history.
-    if (fee > 0) {
-      await client.query(
-        `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,description,metadata,ip_address)
-         VALUES ($1,$2,$3,'fee','completed',$4,$5,$6,$7)`,
-        [uuid(), generateRef(), fromAccountId, fee, 'Wire transfer fee', JSON.stringify({ wireRef: refId }), req.ip]
-      );
+    await auditLog({ actorId: userId, action: 'transaction.wire.code_sent' });
+    res.json({ requiresCode: true, challengeToken });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /transactions/wire/confirm  → verifies the code, then sends the wire
+export async function confirmWire(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const redis = getRedis();
+    const { challengeToken, code } = req.body;
+    if (!challengeToken || !code) throw new AppError('Missing confirmation code', 400);
+
+    let payload: any;
+    try { payload = jwt.verify(challengeToken, process.env.JWT_SECRET!); }
+    catch { throw new AppError('Your confirmation request expired. Please start the transfer again.', 400); }
+    if (payload.type !== 'tx_code') throw new AppError('Invalid request', 400);
+
+    const raw = await redis.get(`txcode:${payload.tid}`);
+    if (!raw) throw new AppError('Your confirmation code expired. Please start the transfer again.', 400);
+    const stored = JSON.parse(raw);
+    if (stored.userId !== payload.sub) throw new AppError('Invalid request', 400);
+    if (stored.attempts >= 5) {
+      await redis.del(`txcode:${payload.tid}`);
+      throw new AppError('Too many incorrect attempts. Please start the transfer again.', 429);
     }
 
-    await client.query('COMMIT');
+    const ok = await bcrypt.compare(String(code), stored.hash);
+    if (!ok) {
+      stored.attempts += 1;
+      await redis.setEx(`txcode:${payload.tid}`, 600, JSON.stringify(stored));
+      throw new AppError('Incorrect code. Please try again.', 401);
+    }
 
-    await auditLog({ actorId: userId, action: 'transaction.wire', entityId: txId });
-    emitToUser(userId, 'transaction', { type: 'wire', amount: amt, refId, status: 'completed' });
-    await notify(userId, 'Wire sent', `You sent ${fmtMoney(amt)} via wire to ${recipient?.name ?? 'recipient'}.`);
-
-    res.status(201).json({ transactionId: txId, referenceId: refId, status: 'completed' });
+    await redis.del(`txcode:${payload.tid}`);
+    if (stored.action?.type !== 'wire') throw new AppError('Invalid action', 400);
+    const result = await executeWire(payload.sub, stored.action, req.ip);
+    res.status(201).json({ transactionId: result.transactionId, referenceId: result.referenceId, status: 'completed' });
   } catch (e) {
-    await client.query('ROLLBACK');
     next(e);
-  } finally {
-    client.release();
   }
 }
 

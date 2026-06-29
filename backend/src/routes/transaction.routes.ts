@@ -38,6 +38,11 @@ r.post('/wire',
   body('amount').isFloat({ min: 100 }),
   validate, c.wireTransfer);
 
+r.post('/wire/confirm',
+  body('challengeToken').notEmpty(),
+  body('code').notEmpty(),
+  validate, c.confirmWire);
+
 r.get('/history', c.getTransactionHistory);
 r.get('/:id', c.getTransaction);
 
