@@ -9,7 +9,7 @@ import { emitToUser, emitAdmin } from '../services/websocket';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getRedis } from '../config/redis';
-import { sendTransactionCode } from '../services/email';
+import { sendTransactionCode, sendTransactionAlert } from '../services/email';
 
 // Persist an in-app notification (non-fatal — never blocks the transaction).
 const fmtMoney = (n: number) =>
@@ -25,6 +25,16 @@ async function notify(userId: string, title: string, body: string): Promise<void
   } catch (e) {
     console.error('[notify] failed:', e);
   }
+  // Email alert (non-blocking — never blocks or fails the transaction)
+  (async () => {
+    try {
+      const { rows: [u] } = await getDb().query('SELECT email FROM users WHERE id=$1', [userId]);
+      if (!u?.email) return;
+      const { rows: [b] } = await getDb().query('SELECT COALESCE(SUM(available_balance),0) AS bal FROM accounts WHERE user_id=$1', [userId]);
+      const balLine = (b && b.bal != null) ? `Available balance: $${Number(b.bal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : undefined;
+      await sendTransactionAlert(u.email, title, body, balLine);
+    } catch (e: any) { console.error('[notify email] failed:', e?.message); }
+  })();
 }
 
 // Shared check: user must have at least one approved (non-rejected, non-pending) credit card
@@ -166,13 +176,9 @@ export async function internalTransfer(req: Request, res: Response, next: NextFu
 
 // POST /transactions/zelle — instant P2P by email or phone
 export async function zelleTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const db     = getDb();
-  const client = await (db as any).connect();
   try {
     const userId = (req as any).user.id;
     await ensureCanSendMoney(userId);
-
-    await client.query('BEGIN');
 
     const { fromAccountId, identifier, amount, note } = req.body;
     const amt = parseFloat(amount);
@@ -180,8 +186,8 @@ export async function zelleTransfer(req: Request, res: Response, next: NextFunct
     if (!identifier) throw new AppError('Recipient email or phone is required', 400);
     if (amt > TX_LIMITS.zelle) throw new AppError(`Amount exceeds the Zelle limit of $${TX_LIMITS.zelle.toLocaleString()}`, 400);
 
-    // Find recipient's active checking account — recipient validation
-    const { rows: [recipient] } = await client.query(
+    // Recipient validation
+    const { rows: [recipient] } = await getDb().query(
       `SELECT u.id AS recipient_id, a.id AS account_id
        FROM users u
        JOIN accounts a ON a.user_id=u.id AND a.status='active' AND a.account_type='checking'
@@ -191,62 +197,38 @@ export async function zelleTransfer(req: Request, res: Response, next: NextFunct
     );
     if (!recipient) throw new AppError('Recipient not found on Oakstones. They must have an active Oakstones account to receive Zelle.', 404);
 
-    // Check sender
-    const { rows: [from] } = await client.query(
-      'SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE',
-      [fromAccountId, userId]
-    );
+    // Sender validation
+    const { rows: [from] } = await getDb().query('SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2', [fromAccountId, userId]);
     if (!from) throw new AppError('Account not found', 404);
     if (from.status !== 'active') throw new AppError('Account not active', 400);
     if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
 
-    const fraud = await runFraudCheck({
-      userId, fromAccountId, toAccountId: recipient.account_id,
-      amount: amt, ip: req.ip ?? '', txType: 'zelle',
-    });
-
-    await client.query(
-      'UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2',
-      [amt, fromAccountId]
+    // Require a code if the amount is over $1,000 OR this is a first-time recipient for this user.
+    const { rows: prior } = await getDb().query(
+      `SELECT 1 FROM transactions t JOIN accounts fa ON fa.id=t.from_account_id
+       WHERE t.tx_type='zelle' AND t.status='completed' AND fa.user_id=$1 AND t.to_account_id=$2 LIMIT 1`,
+      [userId, recipient.account_id]
     );
-    await client.query(
-      'UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2',
-      [amt, recipient.account_id]
-    );
+    const firstTime = prior.length === 0;
+    const needsCode = amt > 1000 || firstTime;
 
-    const refId = generateRef();
-    const txId  = uuid();
-    await client.query(
-      `INSERT INTO transactions (id,reference_id,from_account_id,to_account_id,tx_type,status,amount,description,risk_score,ip_address)
-       VALUES ($1,$2,$3,$4,'zelle','completed',$5,$6,$7,$8)`,
-      [txId, refId, fromAccountId, recipient.account_id, amt, note ?? null, fraud.score, req.ip]
-    );
-
-    await client.query('COMMIT');
-
-    emitToUser(userId, 'transaction', { type: 'zelle_sent', amount: amt, refId });
-    emitToUser(recipient.recipient_id, 'transaction', { type: 'zelle_received', amount: amt, refId });
-    await notify(userId, 'Zelle sent', `You sent ${fmtMoney(amt)} via Zelle to ${identifier}.`);
-    await notify(recipient.recipient_id, 'Money received', `You received ${fmtMoney(amt)} via Zelle.`);
-
-    res.status(201).json({ transactionId: txId, referenceId: refId, status: 'completed' });
+    const action = { type: 'zelle', fromAccountId, amount: amt, identifier, note: note ?? null };
+    if (needsCode) {
+      await issueTxCode(userId, action, `Zelle of ${fmtMoney(amt)} to ${identifier}.`, res);
+    } else {
+      const result = await executeZelle(userId, action, req.ip);
+      res.status(201).json({ transactionId: result.transactionId, referenceId: result.referenceId, status: 'completed' });
+    }
   } catch (e) {
-    await client.query('ROLLBACK');
     next(e);
-  } finally {
-    client.release();
   }
 }
 
 // POST /transactions/ach — async ACH transfer (1-3 business days)
 export async function achTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const db     = getDb();
-  const client = await (db as any).connect();
   try {
     const userId = (req as any).user.id;
     await ensureCanSendMoney(userId);
-
-    await client.query('BEGIN');
 
     const { fromAccountId, routingNumber, externalAccountNumber, accountType, accountHolderName, amount, direction } = req.body;
     const amt = parseFloat(amount);
@@ -255,63 +237,113 @@ export async function achTransfer(req: Request, res: Response, next: NextFunctio
     if (!externalAccountNumber || String(externalAccountNumber).trim().length < 4) throw new AppError('Valid external account number is required', 400);
     if (amt > TX_LIMITS.ach) throw new AppError(`Amount exceeds the ACH limit of $${TX_LIMITS.ach.toLocaleString()}`, 400);
 
-    // Verify ownership and balance on the Oakstones side
-    const { rows: [from] } = await client.query(
-      'SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE',
-      [fromAccountId, userId]
-    );
+    const isOutbound = direction !== 'credit';
+    const { rows: [from] } = await getDb().query('SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2', [fromAccountId, userId]);
     if (!from) throw new AppError('Source account not found', 404);
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
 
-    // 'debit'  = money leaves Oakstones (outbound) -> debit this account
-    // 'credit' = money comes into Oakstones (inbound)  -> credit this account
-    const isOutbound = direction !== 'credit';
-    if (isOutbound) {
-      if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
-      await client.query(
-        'UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2',
-        [amt, fromAccountId]
-      );
-    } else {
-      await client.query(
-        'UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2',
-        [amt, fromAccountId]
-      );
+    if (!isOutbound) {
+      // Inbound (pull funds in) — money arriving, no confirmation code needed. Execute inline.
+      const client = await (getDb() as any).connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, fromAccountId]);
+        const refId = generateRef(); const txId = uuid();
+        await client.query(
+          `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
+           VALUES ($1,$2,$3,'ach','completed',$4,$5,$6)`,
+          [txId, refId, fromAccountId, amt, JSON.stringify({ routingNumber, externalAccountNumber, accountType, accountHolderName, direction: 'credit' }), req.ip]);
+        await client.query('COMMIT');
+        await auditLog({ actorId: userId, action: 'transaction.ach', entityId: txId });
+        emitToUser(userId, 'transaction', { type: 'ach', amount: amt, refId, status: 'completed' });
+        await notify(userId, 'ACH transfer', `You received ${fmtMoney(amt)} via ACH.`);
+        res.status(201).json({ transactionId: txId, referenceId: refId, status: 'completed', message: 'ACH transfer completed. Funds have been credited to your account.' });
+      } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+      return;
     }
 
-    const refId = generateRef();
-    const txId  = uuid();
-
-    await client.query(
-      `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
-       VALUES ($1,$2,$3,'ach','completed',$4,$5,$6)`,
-      [txId, refId, fromAccountId, amt,
-        JSON.stringify({ routingNumber, externalAccountNumber, accountType, accountHolderName, direction }), req.ip]
-    );
-
-    await client.query('COMMIT');
-
-    await auditLog({ actorId: userId, action: 'transaction.ach', entityId: txId });
-    emitToUser(userId, 'transaction', { type: 'ach', amount: amt, refId, status: 'completed' });
-    await notify(userId, 'ACH transfer', isOutbound ? `You sent ${fmtMoney(amt)} via ACH.` : `You received ${fmtMoney(amt)} via ACH.`);
-
-    res.status(201).json({
-      transactionId: txId,
-      referenceId:   refId,
-      status:        'completed',
-      message:       isOutbound
-        ? 'ACH transfer completed. Funds have been debited from your account.'
-        : 'ACH transfer completed. Funds have been credited to your account.',
-    });
+    // Outbound — money leaving, require an emailed confirmation code.
+    if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
+    const action = { type: 'ach', fromAccountId, amount: amt, routingNumber, externalAccountNumber, accountType, accountHolderName, direction: 'debit' };
+    await issueTxCode(userId, action, `ACH transfer of ${fmtMoney(amt)} to ${accountHolderName || 'external account'} (••••${String(externalAccountNumber).slice(-4)}).`, res);
   } catch (e) {
-    await client.query('ROLLBACK');
     next(e);
-  } finally {
-    client.release();
   }
 }
 
 // POST /transactions/wire — wire transfer
+// Generate a one-time code, store the validated action in Redis, email the code, return a challenge token.
+async function issueTxCode(userId: string, action: any, summary: string, res: Response): Promise<void> {
+  const redis = getRedis();
+  const tid   = uuid();
+  const code  = String(Math.floor(100000 + Math.random() * 900000));
+  const codeHash = await bcrypt.hash(code, 8);
+  await redis.setEx(`txcode:${tid}`, 600, JSON.stringify({ userId, hash: codeHash, attempts: 0, action }));
+  const challengeToken = jwt.sign({ sub: userId, tid, type: 'tx_code' }, process.env.JWT_SECRET!, { expiresIn: '10m' });
+  const { rows: [u] } = await getDb().query('SELECT email FROM users WHERE id=$1', [userId]);
+  if (u?.email) sendTransactionCode(u.email, code, summary).catch((e) => console.error('[Email] tx code failed:', e?.message));
+  await auditLog({ actorId: userId, action: 'transaction.code_sent' });
+  res.json({ requiresCode: true, challengeToken });
+}
+
+// Shared executor — performs an outbound ACH once a confirmation code is verified.
+async function executeAch(userId: string, action: any, ip: string | undefined): Promise<{ transactionId: string; referenceId: string }> {
+  const client = await (getDb() as any).connect();
+  try {
+    await client.query('BEGIN');
+    const { fromAccountId, amount, routingNumber, externalAccountNumber, accountType, accountHolderName } = action;
+    const amt = parseFloat(amount);
+    const { rows: [from] } = await client.query('SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE', [fromAccountId, userId]);
+    if (!from) throw new AppError('Source account not found', 404);
+    if (from.status !== 'active') throw new AppError('Account is not active', 400);
+    if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
+    await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [amt, fromAccountId]);
+    const refId = generateRef(); const txId = uuid();
+    await client.query(
+      `INSERT INTO transactions (id,reference_id,from_account_id,tx_type,status,amount,metadata,ip_address)
+       VALUES ($1,$2,$3,'ach','completed',$4,$5,$6)`,
+      [txId, refId, fromAccountId, amt, JSON.stringify({ routingNumber, externalAccountNumber, accountType, accountHolderName, direction: 'debit' }), ip]);
+    await client.query('COMMIT');
+    await auditLog({ actorId: userId, action: 'transaction.ach', entityId: txId });
+    emitToUser(userId, 'transaction', { type: 'ach', amount: amt, refId, status: 'completed' });
+    await notify(userId, 'ACH transfer', `You sent ${fmtMoney(amt)} via ACH.`);
+    return { transactionId: txId, referenceId: refId };
+  } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+}
+
+// Shared executor — performs a Zelle send once a confirmation code is verified (re-validates everything).
+async function executeZelle(userId: string, action: any, ip: string | undefined): Promise<{ transactionId: string; referenceId: string }> {
+  const client = await (getDb() as any).connect();
+  try {
+    await client.query('BEGIN');
+    const { fromAccountId, amount, identifier, note } = action;
+    const amt = parseFloat(amount);
+    const { rows: [recipient] } = await client.query(
+      `SELECT u.id AS recipient_id, a.id AS account_id FROM users u
+       JOIN accounts a ON a.user_id=u.id AND a.status='active' AND a.account_type='checking'
+       WHERE (u.email=$1 OR u.phone=$1) AND u.id!=$2 LIMIT 1`, [identifier, userId]);
+    if (!recipient) throw new AppError('Recipient not found on Oakstones.', 404);
+    const { rows: [from] } = await client.query('SELECT available_balance, status FROM accounts WHERE id=$1 AND user_id=$2 FOR UPDATE', [fromAccountId, userId]);
+    if (!from) throw new AppError('Account not found', 404);
+    if (from.status !== 'active') throw new AppError('Account not active', 400);
+    if (parseFloat(from.available_balance) < amt) throw new AppError('Insufficient funds', 400);
+    const fraud = await runFraudCheck({ userId, fromAccountId, toAccountId: recipient.account_id, amount: amt, ip: ip ?? '', txType: 'zelle' });
+    await client.query('UPDATE accounts SET balance=balance-$1, available_balance=available_balance-$1 WHERE id=$2', [amt, fromAccountId]);
+    await client.query('UPDATE accounts SET balance=balance+$1, available_balance=available_balance+$1 WHERE id=$2', [amt, recipient.account_id]);
+    const refId = generateRef(); const txId = uuid();
+    await client.query(
+      `INSERT INTO transactions (id,reference_id,from_account_id,to_account_id,tx_type,status,amount,description,risk_score,ip_address)
+       VALUES ($1,$2,$3,$4,'zelle','completed',$5,$6,$7,$8)`,
+      [txId, refId, fromAccountId, recipient.account_id, amt, note ?? null, fraud.score, ip]);
+    await client.query('COMMIT');
+    emitToUser(userId, 'transaction', { type: 'zelle_sent', amount: amt, refId });
+    emitToUser(recipient.recipient_id, 'transaction', { type: 'zelle_received', amount: amt, refId });
+    await notify(userId, 'Zelle sent', `You sent ${fmtMoney(amt)} via Zelle to ${identifier}.`);
+    await notify(recipient.recipient_id, 'Money received', `You received ${fmtMoney(amt)} via Zelle.`);
+    return { transactionId: txId, referenceId: refId };
+  } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+}
+
 // Shared executor — performs the actual wire once a confirmation code is verified.
 async function executeWire(userId: string, action: any, ip: string | undefined): Promise<{ transactionId: string; referenceId: string }> {
   const db     = getDb();
@@ -387,29 +419,15 @@ export async function wireTransfer(req: Request, res: Response, next: NextFuncti
     if (from.status !== 'active') throw new AppError('Account is not active', 400);
     if (parseFloat(from.available_balance) < amt + fee) throw new AppError('Insufficient funds to cover the wire amount plus the wire fee', 400);
 
-    // Generate a one-time code, store the validated action server-side, email the code.
-    const redis = getRedis();
-    const tid   = uuid();
-    const code  = String(Math.floor(100000 + Math.random() * 900000));
-    const codeHash = await bcrypt.hash(code, 8);
     const action = { type: 'wire', fromAccountId, amount: amt, recipient };
-    await redis.setEx(`txcode:${tid}`, 600, JSON.stringify({ userId, hash: codeHash, attempts: 0, action }));
-
-    const challengeToken = jwt.sign({ sub: userId, tid, type: 'tx_code' }, process.env.JWT_SECRET!, { expiresIn: '10m' });
-
-    const { rows: [u] } = await getDb().query('SELECT email FROM users WHERE id=$1', [userId]);
-    const summary = `Wire of ${fmtMoney(amt)} to ${recipient.name} at ${recipient.bankName}.`;
-    if (u?.email) sendTransactionCode(u.email, code, summary).catch((e) => console.error('[Email] tx code failed:', e?.message));
-
-    await auditLog({ actorId: userId, action: 'transaction.wire.code_sent' });
-    res.json({ requiresCode: true, challengeToken });
+    await issueTxCode(userId, action, `Wire of ${fmtMoney(amt)} to ${recipient.name} at ${recipient.bankName}.`, res);
   } catch (e) {
     next(e);
   }
 }
 
-// POST /transactions/wire/confirm  → verifies the code, then sends the wire
-export async function confirmWire(req: Request, res: Response, next: NextFunction): Promise<void> {
+// POST /transactions/{wire|ach|zelle}/confirm  → verifies the code, then executes the held transfer
+export async function confirmTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const redis = getRedis();
     const { challengeToken, code } = req.body;
@@ -437,8 +455,12 @@ export async function confirmWire(req: Request, res: Response, next: NextFunctio
     }
 
     await redis.del(`txcode:${payload.tid}`);
-    if (stored.action?.type !== 'wire') throw new AppError('Invalid action', 400);
-    const result = await executeWire(payload.sub, stored.action, req.ip);
+    const a = stored.action;
+    let result: { transactionId: string; referenceId: string };
+    if (a?.type === 'wire')       result = await executeWire(payload.sub, a, req.ip);
+    else if (a?.type === 'ach')   result = await executeAch(payload.sub, a, req.ip);
+    else if (a?.type === 'zelle') result = await executeZelle(payload.sub, a, req.ip);
+    else throw new AppError('Invalid action', 400);
     res.status(201).json({ transactionId: result.transactionId, referenceId: result.referenceId, status: 'completed' });
   } catch (e) {
     next(e);

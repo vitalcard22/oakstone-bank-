@@ -64,6 +64,16 @@ export async function sendTransactionCode(to: string, code: string, summary: str
   await send(to, `${code} is your Oakstones 1 Bank transfer code`, html, text);
 }
 
+export async function sendTransactionAlert(to: string, title: string, body: string, balanceLine?: string): Promise<void> {
+  const html = brandShell(title,
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">${body}</p>
+     ${balanceLine ? `<div style="background:#F7FBF8;border:1px solid #E9E3D4;border-radius:10px;padding:14px 18px;margin:0 0 16px;font-size:15px;color:#1F2937;font-weight:600;">${balanceLine}</div>` : ''}
+     <p style="font-size:13px;line-height:1.6;margin:0;color:#6b6a60;">If you don't recognize this activity, contact support immediately.</p>`
+  );
+  const text = `${title}\n\n${body}${balanceLine ? `\n${balanceLine}` : ''}\n\nIf you don't recognize this activity, contact support immediately.`;
+  await send(to, title, html, text);
+}
+
 export async function sendVerificationEmail(to: string, firstName: string, verifyUrl: string): Promise<void> {
   const html = brandShell('Verify your email',
     `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>

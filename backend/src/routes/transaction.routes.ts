@@ -41,7 +41,17 @@ r.post('/wire',
 r.post('/wire/confirm',
   body('challengeToken').notEmpty(),
   body('code').notEmpty(),
-  validate, c.confirmWire);
+  validate, c.confirmTransfer);
+
+r.post('/ach/confirm',
+  body('challengeToken').notEmpty(),
+  body('code').notEmpty(),
+  validate, c.confirmTransfer);
+
+r.post('/zelle/confirm',
+  body('challengeToken').notEmpty(),
+  body('code').notEmpty(),
+  validate, c.confirmTransfer);
 
 r.get('/history', c.getTransactionHistory);
 r.get('/:id', c.getTransaction);

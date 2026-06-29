@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { v4 as uuid } from 'uuid';
 import { getDb } from '../config/db';
+import { sendTransactionAlert } from '../services/email';
 import { AppError } from '../utils/AppError';
 import { generateRef } from '../utils/helpers';
 import { auditLog } from '../utils/audit';
@@ -32,9 +33,20 @@ async function ensureHasApprovedCard(userId: string): Promise<void> {
 }
 
 async function notify(userId: string, title: string, body: string): Promise<void> {
+  if (!userId) return;
   try {
     await getDb().query('INSERT INTO notifications (user_id, title, body) VALUES ($1,$2,$3)', [userId, title, body]);
   } catch (e) { console.error('[notify] fixed-deposit:', e); }
+  // Email alert (non-blocking — never blocks or fails the transaction)
+  (async () => {
+    try {
+      const { rows: [u] } = await getDb().query('SELECT email FROM users WHERE id=$1', [userId]);
+      if (!u?.email) return;
+      const { rows: [b] } = await getDb().query('SELECT COALESCE(SUM(available_balance),0) AS bal FROM accounts WHERE user_id=$1', [userId]);
+      const balLine = (b && b.bal != null) ? `Available balance: $${Number(b.bal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : undefined;
+      await sendTransactionAlert(u.email, title, body, balLine);
+    } catch (e: any) { console.error('[notify email] failed:', e?.message); }
+  })();
 }
 
 function maturityValue(principal: number, rate: number, months: number): number {
