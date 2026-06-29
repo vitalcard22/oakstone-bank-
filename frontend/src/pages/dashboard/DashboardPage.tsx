@@ -1,11 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
-import { accountApi } from '../../services/api';
+import { Link } from 'react-router-dom';
+import { accountApi, txApi } from '../../services/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+
+const TYPE_LABEL: Record<string, string> = {
+  transfer: 'Internal transfer', zelle: 'Zelle', ach: 'ACH transfer', wire: 'Wire transfer',
+  fee: 'Fee', deposit: 'Deposit', withdrawal: 'Withdrawal', payment: 'Payment',
+};
+const timeLabel = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 const spendData = [
   {month:'Jan',income:5800,spend:3200},{month:'Feb',income:5800,spend:2900},
@@ -27,6 +34,12 @@ export default function DashboardPage() {
     queryKey: ['accounts'],
     queryFn:  () => accountApi.list().then((r) => r.data),
   });
+
+  const { data: txData } = useQuery({
+    queryKey: ['dashboard-recent-tx'],
+    queryFn:  () => txApi.history().then((r) => r.data),
+  });
+  const recent = (txData?.transactions ?? []).slice(0, 6);
 
   const total = accounts?.reduce((s: number, a: any) => s + parseFloat(a.balance), 0) ?? 0;
 
@@ -80,6 +93,34 @@ export default function DashboardPage() {
               </a>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Recent transactions</p>
+          <Link to="/transactions" className="text-xs font-medium text-emerald-700 hover:underline">View all</Link>
+        </div>
+        {recent.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No transactions yet</p>}
+        <div className="divide-y divide-gray-100">
+          {recent.map((t: any) => {
+            const cpAcct = t.counterparty_account ? `••••${String(t.counterparty_account).slice(-4)}` : null;
+            const cp = [t.counterparty_name, cpAcct].filter(Boolean).join(' ');
+            return (
+              <Link key={t.id} to={`/transfer/receipt/${t.id}`} className="flex items-center justify-between gap-3 py-3 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {TYPE_LABEL[t.tx_type] ?? t.tx_type}
+                    {cp && <span className="text-gray-400 font-normal"> · {cp}</span>}
+                  </p>
+                  <p className="text-xs text-gray-400 truncate">{timeLabel(t.created_at)} · {t.reference_id}</p>
+                </div>
+                <p className={`text-sm font-semibold font-mono flex-shrink-0 ${t.outgoing ? 'text-gray-900' : 'text-green-600'}`}>
+                  {t.outgoing ? '-' : '+'}{fmt(parseFloat(t.amount))}
+                </p>
+              </Link>
+            );
+          })}
         </div>
       </div>
 

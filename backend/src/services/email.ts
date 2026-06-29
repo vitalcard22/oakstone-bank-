@@ -34,7 +34,7 @@ function brandShell(title: string, body: string) {
         ${body}
       </div>
       <div style="background:#f5f5f5;padding:16px 32px;font-size:12px;color:#888;">
-        &copy; ${new Date().getFullYear()} Oakstones 1 Bank. This is a prototype system.
+        &copy; ${new Date().getFullYear()} Oakstones 1 Bank. All rights reserved.
       </div>
     </div>`;
 }
@@ -65,12 +65,16 @@ export async function sendTransactionCode(to: string, code: string, summary: str
 }
 
 export async function sendTransactionAlert(to: string, title: string, body: string, balanceLine?: string): Promise<void> {
-  const html = brandShell(title,
-    `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">${body}</p>
+  const stamp = new Date().toLocaleString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+  const html = brandShell('Account activity alert',
+    `<p style="font-size:16px;line-height:1.6;margin:0 0 6px;color:#1F2937;">${body}</p>
+     <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#6b6a60;">${stamp}</p>
      ${balanceLine ? `<div style="background:#F7FBF8;border:1px solid #E9E3D4;border-radius:10px;padding:14px 18px;margin:0 0 16px;font-size:15px;color:#1F2937;font-weight:600;">${balanceLine}</div>` : ''}
-     <p style="font-size:13px;line-height:1.6;margin:0;color:#6b6a60;">If you don't recognize this activity, contact support immediately.</p>`
+     <p style="font-size:13px;line-height:1.6;margin:0;color:#6b6a60;">This is an automated alert for activity on your Oakstones 1 Bank account. If you don't recognize this activity, please contact us right away.</p>`
   );
-  const text = `${title}\n\n${body}${balanceLine ? `\n${balanceLine}` : ''}\n\nIf you don't recognize this activity, contact support immediately.`;
+  const text = `Account activity alert\n\n${body}\n${stamp}${balanceLine ? `\n${balanceLine}` : ''}\n\nThis is an automated alert for activity on your Oakstones 1 Bank account. If you don't recognize this activity, please contact us right away.`;
   await send(to, title, html, text);
 }
 
