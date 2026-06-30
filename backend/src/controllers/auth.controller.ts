@@ -32,51 +32,20 @@ function last4(v?: string): string | null {
 export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const db = getDb();
-    const {
-      email, password, firstName, lastName, phone,
-      middleName, dob, ssn, citizenship,
-      street, unit, city, state, zip,
-      idType, idNumber, idState,
-      accountType, employment, sourceOfFunds,
-    } = req.body;
+    const { email, password, firstName, lastName, phone } = req.body;
 
     const { rowCount } = await db.query('SELECT 1 FROM users WHERE email = $1', [email]);
     if (rowCount) throw new AppError('Email already registered', 409);
 
     const hash = await bcrypt.hash(password, 12);
     const userId = uuid();
-    const kycStatus = 'pending';
 
+    // Lightweight registration: just the login identity. KYC details are collected
+    // later via submitKyc(). kyc_status starts at 'pending' = "identity not yet submitted".
     await db.query(
-      `INSERT INTO users (
-         id, email, phone, password_hash, first_name, last_name, kyc_status,
-         middle_name, date_of_birth, ssn_last4, citizenship,
-         address_street, address_unit, address_city, address_state, address_zip,
-         id_type, id_last4, id_state, employment_status, source_of_funds, account_type_requested
-       ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,
-         $8,$9,$10,$11,
-         $12,$13,$14,$15,$16,
-         $17,$18,$19,$20,$21,$22
-       )`,
-      [
-        userId, email, phone ?? null, hash, firstName, lastName, kycStatus,
-        middleName ?? null, dob || null, last4(ssn), citizenship ?? null,
-        street ?? null, unit ?? null, city ?? null, state ?? null, zip ?? null,
-        idType ?? null, last4(idNumber), idState ?? null, employment ?? null, sourceOfFunds ?? null, accountType ?? null,
-      ]
-    );
-
-    // Auto-create KYC application so user appears in admin KYC queue
-    await db.query(
-      `INSERT INTO kyc_applications (user_id, status, first_name, last_name, nationality, id_type, id_number,
-         address_line1, address_line2, city, state, country, employment_status, source_of_funds, submitted_at, created_at, updated_at)
-       VALUES ($1, 'pending', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW(), NOW())`,
-      [
-        userId, firstName, lastName, citizenship ?? null, idType ?? null, last4(idNumber),
-        street ?? null, unit ?? null, city ?? null, state ?? null, citizenship ?? 'US',
-        employment ?? null, sourceOfFunds ?? null,
-      ]
+      `INSERT INTO users (id, email, phone, password_hash, first_name, last_name, kyc_status)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending')`,
+      [userId, email, phone ?? null, hash, firstName, lastName]
     );
 
     // Email verification token (24h)
@@ -88,9 +57,77 @@ export async function register(req: Request, res: Response, next: NextFunction):
     const verifyUrl = `${process.env.FRONTEND_URL ?? ''}/verify-email?token=${verifyToken}`;
 
     await auditLog({ actorId: userId, action: 'auth.register', entityType: 'user', entityId: userId });
-    sendApplicationConfirmation(email, firstName).catch((e) => console.error('[Email] confirmation failed:', e?.message));
     sendEmailVerification(email, firstName, verifyUrl).catch((e) => console.error('[Email] verification failed:', e?.message));
-    res.status(201).json({ message: 'Application submitted. Please check your email to verify your address, then sign in.' });
+    res.status(201).json({ message: 'Account created. Please check your email to verify your address, then sign in to complete your identity verification.' });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// POST /auth/kyc  (authenticated) — user submits identity details for review
+export async function submitKyc(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const db = getDb();
+    const userId = (req as any).user.id;
+    const {
+      middleName, dob, ssn, citizenship,
+      street, unit, city, state, zip,
+      idType, idNumber, idState,
+      accountType, employment, sourceOfFunds, selfie,
+    } = req.body;
+
+    const { rows: [u] } = await db.query(
+      'SELECT email, first_name, last_name, kyc_status FROM users WHERE id::text=$1::text',
+      [userId]
+    );
+    if (!u) throw new AppError('User not found', 404);
+    if (u.kyc_status === 'approved') throw new AppError('Your identity is already verified.', 400);
+    if (u.kyc_status === 'under_review') throw new AppError('Your identity verification is already under review.', 400);
+
+    // Save KYC details onto the user record + mark as under review
+    await db.query(
+      `UPDATE users SET
+         middle_name=$1, date_of_birth=$2, ssn_last4=$3, citizenship=$4,
+         address_street=$5, address_unit=$6, address_city=$7, address_state=$8, address_zip=$9,
+         id_type=$10, id_last4=$11, id_state=$12, employment_status=$13, source_of_funds=$14, account_type_requested=$15,
+         kyc_status='under_review', updated_at=NOW()
+       WHERE id::text=$16::text`,
+      [
+        middleName ?? null, dob || null, last4(ssn), citizenship ?? null,
+        street ?? null, unit ?? null, city ?? null, state ?? null, zip ?? null,
+        idType ?? null, last4(idNumber), idState ?? null, employment ?? null, sourceOfFunds ?? null, accountType ?? null,
+        userId,
+      ]
+    );
+
+    // Create or refresh the KYC application row for the admin queue
+    const { rows: existingApp } = await db.query(
+      'SELECT id FROM kyc_applications WHERE user_id::text=$1::text ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+    if (existingApp.length) {
+      await db.query(
+        `UPDATE kyc_applications SET status='pending', first_name=$1, last_name=$2, nationality=$3, id_type=$4, id_number=$5,
+           address_line1=$6, address_line2=$7, city=$8, state=$9, country=$10, employment_status=$11, source_of_funds=$12,
+           selfie_data=$13, submitted_at=NOW(), updated_at=NOW() WHERE id=$14`,
+        [u.first_name, u.last_name, citizenship ?? null, idType ?? null, last4(idNumber),
+         street ?? null, unit ?? null, city ?? null, state ?? null, citizenship ?? 'US',
+         employment ?? null, sourceOfFunds ?? null, selfie ?? null, existingApp[0].id]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO kyc_applications (user_id, status, first_name, last_name, nationality, id_type, id_number,
+           address_line1, address_line2, city, state, country, employment_status, source_of_funds, selfie_data, submitted_at, created_at, updated_at)
+         VALUES ($1, 'pending', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW(), NOW())`,
+        [userId, u.first_name, u.last_name, citizenship ?? null, idType ?? null, last4(idNumber),
+         street ?? null, unit ?? null, city ?? null, state ?? null, citizenship ?? 'US',
+         employment ?? null, sourceOfFunds ?? null, selfie ?? null]
+      );
+    }
+
+    await auditLog({ actorId: userId, action: 'auth.kyc.submit', entityType: 'user', entityId: userId });
+    sendApplicationConfirmation(u.email, u.first_name).catch(() => {});
+    res.json({ message: 'Identity verification submitted. We will review it shortly.' });
   } catch (e) {
     next(e);
   }

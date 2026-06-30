@@ -3,6 +3,7 @@
 const resend = new Resend(process.env.RESEND_API_KEY);
 const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 const fromName = process.env.EMAIL_FROM_NAME ?? 'Oakstones 1 Bank';
+const replyTo = process.env.EMAIL_REPLY_TO || 'support@oakstones1.com';
 
 async function send(to: string, subject: string, html: string, text: string) {
   if (!process.env.RESEND_API_KEY) {
@@ -12,6 +13,7 @@ async function send(to: string, subject: string, html: string, text: string) {
   try {
     const { error } = await resend.emails.send({
       from: `${fromName} <${from}>`,
+      replyTo,
       to,
       subject,
       html,
@@ -34,7 +36,7 @@ function brandShell(title: string, body: string) {
         ${body}
       </div>
       <div style="background:#f5f5f5;padding:16px 32px;font-size:12px;color:#888;">
-        &copy; ${new Date().getFullYear()} Oakstones 1 Bank. All rights reserved.
+        &copy; ${new Date().getFullYear()} Oakstones 1 Bank. This is a prototype system.
       </div>
     </div>`;
 }
@@ -102,20 +104,26 @@ export async function sendEmailVerification(to: string, firstName: string, verif
   await sendVerificationEmail(to, firstName, verifyUrl);
 }
 
-export async function sendKycApprovedEmail(to: string, firstName: string): Promise<void> {
-  const html = brandShell('Your application has been approved',
+export async function sendKycApprovedEmail(to: string, firstName: string, accountNumber?: string): Promise<void> {
+  const acctBlock = accountNumber ? `
+     <div style="background:#F7FBF8;border:1px solid #E9E3D4;border-radius:10px;padding:16px 20px;margin:0 0 16px;">
+       <p style="font-size:13px;line-height:1.6;margin:0 0 4px;color:#6b6a60;">Your checking account number</p>
+       <p style="font-size:20px;line-height:1.4;margin:0;color:#1F2937;font-weight:700;font-family:'Courier New',monospace;letter-spacing:1px;">${accountNumber}</p>
+     </div>` : '';
+  const html = brandShell('Your account is now open',
     `<p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Dear ${firstName},</p>
-     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">We are pleased to inform you that your Oakstones 1 Bank application has been approved.</p>
-     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Most applications are reviewed within one business day. We will notify you as soon as a decision has been made. No further action is required from you at this time.</p>
-     <p style="font-size:16px;line-height:1.6;margin:0 0 8px;">With appreciation,</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Good news — your identity has been verified and your Oakstones 1 Bank account is now open.</p>
+     ${acctBlock}
+     <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">You can now sign in to deposit funds, send transfers, and apply for a card. For your security, we never include your password in any email — only you know it.</p>
+     <p style="font-size:16px;line-height:1.6;margin:0 0 8px;">Welcome aboard,</p>
      <p style="font-size:16px;line-height:1.6;margin:0;color:#1F6B4A;font-weight:600;">The Oakstones 1 Bank Team</p>`
   );
-  const text = `Dear ${firstName},\n\nYour Oakstones 1 Bank application has been approved.\n\nThe Oakstones 1 Bank Team`;
-  await send(to, 'Your Oakstones 1 Bank application has been approved', html, text);
+  const text = `Dear ${firstName},\n\nYour Oakstones 1 Bank account is now open.${accountNumber ? `\n\nYour checking account number: ${accountNumber}` : ''}\n\nYou can now sign in to deposit, transfer, and apply for a card. For your security, we never include your password in any email.\n\nThe Oakstones 1 Bank Team`;
+  await send(to, 'Your Oakstones 1 Bank account is now open', html, text);
 }
 
-export async function sendApplicationApproved(to: string, firstName: string): Promise<void> {
-  await sendKycApprovedEmail(to, firstName);
+export async function sendApplicationApproved(to: string, firstName: string, accountNumber?: string): Promise<void> {
+  await sendKycApprovedEmail(to, firstName, accountNumber);
 }
 
 export async function sendKycRejectedEmail(to: string, firstName: string, reason?: string): Promise<void> {

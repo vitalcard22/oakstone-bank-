@@ -70,7 +70,19 @@ export default function AdminKycPage() {
             </button>
 
             {isOpen && (
-              <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-3 grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="mb-3">
+                <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-3 flex items-center gap-4">
+                  <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 flex items-center justify-center">
+                    {u.selfie_data
+                      ? <img src={u.selfie_data} alt="Applicant selfie" className="w-full h-full object-cover" />
+                      : <span className="text-xs text-gray-400 text-center px-2">No selfie</span>}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Selfie verification</p>
+                    <p className="text-sm text-gray-600 mt-1">{u.selfie_data ? "Compare this photo against the ID details below before approving." : "No selfie was submitted with this application."}</p>
+                  </div>
+                </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Field label="Date of birth" value={fmtDate(u.date_of_birth)} />
                 <Field label="SSN (last 4)" value={u.ssn_last4 ? `••• •• ${u.ssn_last4}` : "—"} />
                 <Field label="Citizenship" value={u.citizenship ?? u.nationality} />
@@ -83,6 +95,7 @@ export default function AdminKycPage() {
                 <Field label="Employment" value={u.employment_status} />
                 <Field label="Source of funds" value={u.source_of_funds} />
                 <Field label="Account requested" value={u.account_type_requested} />
+              </div>
               </div>
             )}
 

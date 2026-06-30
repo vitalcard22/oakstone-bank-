@@ -31,6 +31,7 @@ r.post('/logout', authenticate, c.logout);
 r.get ('/me', authenticate, c.getMe);
 r.patch('/me', authenticate, c.updateMe);
 r.get('/login-history', authenticate, c.getLoginHistory);
+r.post('/kyc', authenticate, c.submitKyc);
 r.post('/mfa/setup', authenticate, c.setupMfa);
 r.post('/mfa/verify', authenticate, c.verifyMfa);
 r.post('/forgot-password', body('email').isEmail(), validate, c.forgotPassword);

@@ -80,19 +80,25 @@ export async function approveKyc(req: Request, res: Response, next: NextFunction
     );
     await db.query('UPDATE users SET kyc_status=\'approved\' WHERE id::text=$1::text', [req.params.userId]);
 
-    // Create default checking account if none exists
-    const { rows: existing } = await db.query('SELECT id FROM accounts WHERE user_id::text=$1::text', [req.params.userId]);
+    // Create default checking account if none exists; capture the account number either way
+    let acctNum: string | null = null;
+    const { rows: existing } = await db.query(
+      "SELECT account_number FROM accounts WHERE user_id::text=$1::text AND account_type='checking' ORDER BY created_at LIMIT 1",
+      [req.params.userId]
+    );
     if (!existing.length) {
-      const acctNum = `OB${Date.now().toString().slice(-10)}`;
+      acctNum = `OB${Date.now().toString().slice(-10)}`;
       await db.query(
         `INSERT INTO accounts (id, user_id, account_number, account_type, balance, available_balance, status)
          VALUES (uuid_generate_v4(), $1, $2, 'checking', 0, 0, 'active')`,
         [req.params.userId, acctNum]
       );
+    } else {
+      acctNum = existing[0].account_number;
     }
 
     await auditLog({ actorId: (req as any).user.id, action: 'admin.kyc.approve', entityId: req.params.userId });
-    sendApplicationApproved(app.email, app.first_name).catch(() => {});
+    sendApplicationApproved(app.email, app.first_name, acctNum ?? undefined).catch(() => {});
     res.json({ message: 'KYC approved' });
   } catch (e) { next(e); }
 }

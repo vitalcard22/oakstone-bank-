@@ -72,6 +72,25 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-400">Here's an overview of your accounts.</p>
       </div>
 
+      {me?.kyc_status === 'pending' && (
+        <Link to="/kyc" className="block rounded-xl border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
+          <p className="text-sm font-semibold text-amber-900">Finish opening your account</p>
+          <p className="text-xs text-amber-700 mt-0.5">Complete your identity verification to activate your account. It only takes a couple of minutes. →</p>
+        </Link>
+      )}
+      {me?.kyc_status === 'under_review' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm font-semibold text-blue-900">Identity verification under review</p>
+          <p className="text-xs text-blue-700 mt-0.5">Thanks for submitting. We're reviewing your details and will email you once your account is open.</p>
+        </div>
+      )}
+      {me?.kyc_status === 'rejected' && (
+        <Link to="/kyc" className="block rounded-xl border border-red-200 bg-red-50 p-4 hover:bg-red-100 transition-colors">
+          <p className="text-sm font-semibold text-red-900">Identity verification needs attention</p>
+          <p className="text-xs text-red-700 mt-0.5">We couldn't verify your details. Please review and resubmit. →</p>
+        </Link>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {label:'System status',    value:'Operational', dot:'bg-green-400'},
