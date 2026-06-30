@@ -12,6 +12,8 @@ export default function LoginCodePage() {
   const emailHint = location.state?.email as string | undefined;
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [securing, setSecuring] = useState(false);
+  const [secureMsg, setSecureMsg] = useState("Verifying your code…");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -27,12 +29,38 @@ export default function LoginCodePage() {
       setAccessToken(res.data.accessToken);
       const me = await authApi.getMe();
       setUser(normalizeUser(me.data));
-      navigate(me.data.role === "customer" ? "/dashboard" : "/admin/dashboard");
+
+      // Polished "securing your session" transition before entering the account.
+      setSecuring(true);
+      const dest = me.data.role === "customer" ? "/dashboard" : "/admin/dashboard";
+      const steps = ["Verifying your code…", "Securing your session…", "Almost there…"];
+      for (let i = 0; i < steps.length; i++) {
+        setSecureMsg(steps[i]);
+        await new Promise((r) => setTimeout(r, 850));
+      }
+      navigate(dest, { replace: true });
+      return;
     } catch (e: any) {
       toast.error(e.response?.data?.error ?? "Verification failed");
-    } finally {
       setLoading(false);
     }
+  }
+
+  if (securing) {
+    return (
+      <div className="min-h-screen bg-navy-600 flex items-center justify-center p-4">
+        <style>{`@keyframes ob-spin{to{transform:rotate(360deg)}}@keyframes ob-fade{from{opacity:.4}to{opacity:1}}`}</style>
+        <div className="text-center">
+          <img src="/logo.png" alt="Oakstones 1 Bank" className="w-14 h-14 object-contain mx-auto mb-6" />
+          <div
+            className="mx-auto mb-6"
+            style={{ width: 44, height: 44, border: "3px solid rgba(255,255,255,.25)", borderTopColor: "#fff", borderRadius: "50%", animation: "ob-spin .8s linear infinite" }}
+          />
+          <p key={secureMsg} className="text-white text-base font-medium" style={{ animation: "ob-fade .4s ease" }}>{secureMsg}</p>
+          <p className="text-white/50 text-xs mt-2">Please don't close this window.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
