@@ -36,7 +36,7 @@ function brandShell(title: string, body: string) {
         ${body}
       </div>
       <div style="background:#f5f5f5;padding:16px 32px;font-size:12px;color:#888;">
-        &copy; ${new Date().getFullYear()} Oakstones 1 Bank. This is a prototype system.
+        &copy; ${new Date().getFullYear()} Oakstones 1 Bank. All rights reserved.
       </div>
     </div>`;
 }
