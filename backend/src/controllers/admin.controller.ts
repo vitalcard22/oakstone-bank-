@@ -441,14 +441,43 @@ export async function deleteUser(req: Request, res: Response, next: NextFunction
     if (!user) throw new AppError('User not found', 404);
     if (user.role === 'admin') throw new AppError('Cannot delete admin accounts', 403);
 
-    await db.query('DELETE FROM transactions WHERE from_account_id IN (SELECT id FROM accounts WHERE user_id::text=$1::text) OR to_account_id IN (SELECT id FROM accounts WHERE user_id::text=$1::text)', [userId]);
-    await db.query('DELETE FROM accounts WHERE user_id=$1', [userId]);
-    await db.query('DELETE FROM kyc_applications WHERE user_id=$1', [userId]);
-    await db.query('DELETE FROM card_applications WHERE user_id=$1', [userId]);
-    await db.query('DELETE FROM loan_applications WHERE user_id=$1', [userId]);
-    await db.query('DELETE FROM notifications WHERE user_id=$1', [userId]);
-    await db.query('DELETE FROM audit_log WHERE actor_id=$1', [userId]);
-    await db.query('DELETE FROM sessions WHERE user_id=$1', [userId]);
+    // 1) Transactions reference accounts (account_id), not user_id — clear them first.
+    await db.query(
+      `DELETE FROM transactions
+        WHERE from_account_id IN (SELECT id FROM accounts WHERE user_id::text=$1::text)
+           OR to_account_id   IN (SELECT id FROM accounts WHERE user_id::text=$1::text)`,
+      [userId]
+    );
+
+    // 2) Dynamically clear every other table that has a user_id column referencing this user.
+    //    This auto-covers tables added over time (login_events, withdrawal_requests, credit_cards,
+    //    fraud_alerts, loans, kyc_applications, card/loan_applications, notifications, sessions, etc.)
+    //    so user deletion never breaks again when a new table is introduced.
+    const { rows: childTables } = await db.query(
+      `SELECT table_name FROM information_schema.columns
+        WHERE table_schema='public' AND column_name='user_id' AND table_name <> 'users'`
+    );
+    for (const { table_name } of childTables) {
+      if (table_name === 'accounts') continue; // accounts deleted last (other rows may reference them)
+      await db.query(`DELETE FROM "${table_name}" WHERE user_id::text = $1::text`, [userId]);
+    }
+
+    // 3) Clear every table that references accounts.id (account_id) — e.g. retirement_plans,
+    //    fixed_deposits, investments, savings_goals, ISA, etc. — before deleting the accounts.
+    const { rows: acctChildren } = await db.query(
+      `SELECT table_name FROM information_schema.columns
+        WHERE table_schema='public' AND column_name='account_id' AND table_name <> 'accounts'`
+    );
+    for (const { table_name } of acctChildren) {
+      await db.query(
+        `DELETE FROM "${table_name}" WHERE account_id IN (SELECT id FROM accounts WHERE user_id::text = $1::text)`,
+        [userId]
+      );
+    }
+
+    // 4) Accounts, then audit-log entries by this actor, then the user record itself.
+    await db.query('DELETE FROM accounts WHERE user_id::text=$1::text', [userId]);
+    await db.query('DELETE FROM audit_log WHERE actor_id::text=$1::text', [userId]).catch(() => {});
     await db.query('DELETE FROM users WHERE id=$1', [userId]);
 
     await auditLog({ actorId: (req as any).user.id, action: 'admin.user.delete', entityId: userId });

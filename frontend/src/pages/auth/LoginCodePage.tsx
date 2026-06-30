@@ -36,7 +36,7 @@ export default function LoginCodePage() {
       const steps = ["Verifying your code…", "Securing your session…", "Almost there…"];
       for (let i = 0; i < steps.length; i++) {
         setSecureMsg(steps[i]);
-        await new Promise((r) => setTimeout(r, 850));
+        await new Promise((r) => setTimeout(r, 1500));
       }
       navigate(dest, { replace: true });
       return;
