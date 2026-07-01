@@ -82,6 +82,26 @@ export default function AdminKycPage() {
                     <p className="text-sm text-gray-600 mt-1">{u.selfie_data ? "Compare this photo against the ID details below before approving." : "No selfie was submitted with this application."}</p>
                   </div>
                 </div>
+                {(u.id_front_data || u.id_back_data) && (
+                  <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-3">
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">ID document</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Front</p>
+                        {u.id_front_data
+                          ? <a href={u.id_front_data} target="_blank" rel="noreferrer"><img src={u.id_front_data} alt="ID front" className="w-full rounded border border-gray-200 object-cover" /></a>
+                          : <div className="text-xs text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded">Not provided</div>}
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Back</p>
+                        {u.id_back_data
+                          ? <a href={u.id_back_data} target="_blank" rel="noreferrer"><img src={u.id_back_data} alt="ID back" className="w-full rounded border border-gray-200 object-cover" /></a>
+                          : <div className="text-xs text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded">Not provided</div>}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-2">Tap an image to open full size.</p>
+                  </div>
+                )}
               <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Field label="Date of birth" value={fmtDate(u.date_of_birth)} />
                 <Field label="SSN (last 4)" value={u.ssn_last4 ? `••• •• ${u.ssn_last4}` : "—"} />

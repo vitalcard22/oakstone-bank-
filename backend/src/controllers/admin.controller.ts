@@ -55,7 +55,10 @@ export async function setUserStatus(req: Request, res: Response, next: NextFunct
 export async function kycQueue(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { rows } = await getDb().query(
-      `SELECT k.*, u.email, u.first_name, u.last_name
+      `SELECT k.*, u.email, u.first_name, u.last_name,
+              u.ssn_last4, u.date_of_birth, u.citizenship,
+              u.id_last4, u.id_state, u.account_type_requested,
+              u.address_street, u.address_unit, u.address_city, u.address_state, u.address_zip
        FROM kyc_applications k JOIN users u ON u.id::text=k.user_id::text
        WHERE k.status='pending'
        ORDER BY k.created_at ASC`
@@ -475,7 +478,18 @@ export async function deleteUser(req: Request, res: Response, next: NextFunction
       );
     }
 
-    // 4) Accounts, then audit-log entries by this actor, then the user record itself.
+    // 4) Null out any "actor" references to this user (reviewed_by, resolved_by, updated_by,
+    //    kyc_reviewed_by, etc.) — these reference users without ON DELETE CASCADE and would
+    //    otherwise block the final delete. Done dynamically so any *_by column is covered.
+    const { rows: byCols } = await db.query(
+      `SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_schema='public' AND column_name LIKE '%\\_by'`
+    );
+    for (const { table_name, column_name } of byCols) {
+      await db.query(`UPDATE "${table_name}" SET "${column_name}" = NULL WHERE "${column_name}"::text = $1::text`, [userId]).catch(() => {});
+    }
+
+    // 5) Accounts, then audit-log entries by this actor, then the user record itself.
     await db.query('DELETE FROM accounts WHERE user_id::text=$1::text', [userId]);
     await db.query('DELETE FROM audit_log WHERE actor_id::text=$1::text', [userId]).catch(() => {});
     await db.query('DELETE FROM users WHERE id=$1', [userId]);

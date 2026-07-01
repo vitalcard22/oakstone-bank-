@@ -37,6 +37,11 @@ export async function register(req: Request, res: Response, next: NextFunction):
     const { rowCount } = await db.query('SELECT 1 FROM users WHERE email = $1', [email]);
     if (rowCount) throw new AppError('Email already registered', 409);
 
+    if (phone) {
+      const { rowCount: phoneTaken } = await db.query('SELECT 1 FROM users WHERE phone = $1', [phone]);
+      if (phoneTaken) throw new AppError('That phone number is already in use', 409);
+    }
+
     const hash = await bcrypt.hash(password, 12);
     const userId = uuid();
 
@@ -73,7 +78,7 @@ export async function submitKyc(req: Request, res: Response, next: NextFunction)
       middleName, dob, ssn, citizenship,
       street, unit, city, state, zip,
       idType, idNumber, idState,
-      accountType, employment, sourceOfFunds, selfie,
+      accountType, employment, sourceOfFunds, selfie, idFront, idBack,
     } = req.body;
 
     const { rows: [u] } = await db.query(
@@ -95,7 +100,7 @@ export async function submitKyc(req: Request, res: Response, next: NextFunction)
       [
         middleName ?? null, dob || null, last4(ssn), citizenship ?? null,
         street ?? null, unit ?? null, city ?? null, state ?? null, zip ?? null,
-        idType ?? null, last4(idNumber), idState ?? null, employment ?? null, sourceOfFunds ?? null, accountType ?? null,
+        idType ?? null, ssn.replace(/\D/g,'').slice(-4), idState ?? null, employment ?? null, sourceOfFunds ?? null, accountType ?? null,
         userId,
       ]
     );
@@ -109,19 +114,19 @@ export async function submitKyc(req: Request, res: Response, next: NextFunction)
       await db.query(
         `UPDATE kyc_applications SET status='pending', first_name=$1, last_name=$2, nationality=$3, id_type=$4, id_number=$5,
            address_line1=$6, address_line2=$7, city=$8, state=$9, country=$10, employment_status=$11, source_of_funds=$12,
-           selfie_data=$13, submitted_at=NOW(), updated_at=NOW() WHERE id=$14`,
-        [u.first_name, u.last_name, citizenship ?? null, idType ?? null, last4(idNumber),
+           selfie_data=$13, id_front_data=$14, id_back_data=$15, submitted_at=NOW(), updated_at=NOW() WHERE id=$16`,
+        [u.first_name, u.last_name, citizenship ?? null, idType ?? null, last4(ssn),
          street ?? null, unit ?? null, city ?? null, state ?? null, citizenship ?? 'US',
-         employment ?? null, sourceOfFunds ?? null, selfie ?? null, existingApp[0].id]
+         employment ?? null, sourceOfFunds ?? null, selfie ?? null, idFront ?? null, idBack ?? null, existingApp[0].id]
       );
     } else {
       await db.query(
         `INSERT INTO kyc_applications (user_id, status, first_name, last_name, nationality, id_type, id_number,
-           address_line1, address_line2, city, state, country, employment_status, source_of_funds, selfie_data, submitted_at, created_at, updated_at)
-         VALUES ($1, 'pending', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW(), NOW())`,
+           address_line1, address_line2, city, state, country, employment_status, source_of_funds, selfie_data, id_front_data, id_back_data, submitted_at, created_at, updated_at)
+         VALUES ($1, 'pending', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW(), NOW())`,
         [userId, u.first_name, u.last_name, citizenship ?? null, idType ?? null, last4(idNumber),
          street ?? null, unit ?? null, city ?? null, state ?? null, citizenship ?? 'US',
-         employment ?? null, sourceOfFunds ?? null, selfie ?? null]
+         employment ?? null, sourceOfFunds ?? null, selfie ?? null, idFront ?? null, idBack ?? null]
       );
     }
 

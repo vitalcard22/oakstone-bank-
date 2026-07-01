@@ -80,6 +80,9 @@ export default function KycPage() {
   const [loading, setLoading] = useState(false);
   const [selfie, setSelfie] = useState<string | null>(null);
   const [selfieBusy, setSelfieBusy] = useState(false);
+  const [idFront, setIdFront] = useState<string | null>(null);
+  const [idBack, setIdBack] = useState<string | null>(null);
+  const [idBusy, setIdBusy] = useState<"" | "front" | "back">("");
   const { register, handleSubmit, trigger, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
     mode: "onTouched",
@@ -100,19 +103,37 @@ export default function KycPage() {
     }
   }
 
+  async function onIdImage(e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back") {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIdBusy(side);
+    try {
+      // Larger + lighter compression than the selfie so the ID text stays readable.
+      const dataUrl = await fileToDataUrl(file, 1000, 0.65);
+      (side === "front" ? setIdFront : setIdBack)(dataUrl);
+    } catch {
+      toast.error("Could not process that image. Please try again.");
+    } finally {
+      setIdBusy("");
+      e.target.value = "";
+    }
+  }
+
   async function next() {
     const ok = await trigger(STAGE_FIELDS[stage]);
     if (!ok) return;
+    if (stage === 2 && !idFront) { toast.error("Please add the front of your ID to continue."); return; }
     if (stage === 3 && !selfie) { toast.error("Please take a selfie to continue."); return; }
     setStage((s) => Math.min(4, s + 1));
   }
   function back() { setStage((s) => Math.max(1, s - 1)); }
 
   async function onSubmit(data: Form) {
+    if (!idFront) { toast.error("The front of your ID is required."); setStage(2); return; }
     if (!selfie) { toast.error("A selfie is required."); setStage(3); return; }
     setLoading(true);
     try {
-      await authApi.submitKyc({ ...data, selfie } as any);
+      await authApi.submitKyc({ ...data, selfie, idFront, idBack } as any);
       toast.success("Identity verification submitted! We'll review it shortly.");
       navigate("/dashboard");
     } catch (e: any) {
@@ -172,7 +193,12 @@ export default function KycPage() {
         .ob-selfie-frame .ph{color:#b8b4a4;font-size:48px;}
         .ob-cam-btn{display:inline-block;background:linear-gradient(135deg,#2E8B5E,#1F6B4A);color:#fff;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:15px;letter-spacing:.04em;}
         .ob-cam-input{display:none;}
-        @media(max-width:560px){.ob-row,.ob-row3{grid-template-columns:1fr;}.ob-stepitem .label{display:none;}}
+        .ob-idgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;}
+        .ob-idframe{width:100%;aspect-ratio:1.586/1;border-radius:10px;background:#F2F0E8;border:2px dashed #d9d4c4;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px;}
+        .ob-idframe img{width:100%;height:100%;object-fit:cover;}
+        .ob-idframe .ph{font-size:40px;opacity:.5;}
+        .ob-idbtn{display:block;text-align:center;background:#fff;color:#1F6B4A;border:1px solid #2E8B5E;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:14px;}
+        @media(max-width:560px){.ob-row,.ob-row3{grid-template-columns:1fr;}.ob-stepitem .label{display:none;}.ob-idgrid{grid-template-columns:1fr;}}
       `}</style>
 
       <div className="ob-apply-wrap">
@@ -253,6 +279,28 @@ export default function KycPage() {
                       <option value="">—</option>
                       {US_STATES.map((s) => <option key={s}>{s}</option>)}
                     </select>
+                  </div>
+                </div>
+
+                <p className="ob-l" style={{ marginTop: 8, marginBottom: 10 }}>Upload or take a photo of your ID. On a phone this opens your camera; on a computer you can upload a file.</p>
+                <div className="ob-idgrid">
+                  <div className="ob-idbox">
+                    <div className="ob-idframe">
+                      {idFront ? <img src={idFront} alt="Front of ID" /> : <span className="ph">🪪</span>}
+                    </div>
+                    <label className="ob-idbtn">
+                      {idBusy === "front" ? "Processing…" : idFront ? "Replace front" : "Front of ID *"}
+                      <input className="ob-cam-input" type="file" accept="image/*" capture="environment" onChange={(e) => onIdImage(e, "front")} disabled={idBusy !== ""} />
+                    </label>
+                  </div>
+                  <div className="ob-idbox">
+                    <div className="ob-idframe">
+                      {idBack ? <img src={idBack} alt="Back of ID" /> : <span className="ph">🪪</span>}
+                    </div>
+                    <label className="ob-idbtn">
+                      {idBusy === "back" ? "Processing…" : idBack ? "Replace back" : "Back of ID (optional)"}
+                      <input className="ob-cam-input" type="file" accept="image/*" capture="environment" onChange={(e) => onIdImage(e, "back")} disabled={idBusy !== ""} />
+                    </label>
                   </div>
                 </div>
               </>
