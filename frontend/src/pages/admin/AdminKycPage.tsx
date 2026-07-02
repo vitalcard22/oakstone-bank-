@@ -104,7 +104,7 @@ export default function AdminKycPage() {
                 )}
               <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Field label="Date of birth" value={fmtDate(u.date_of_birth)} />
-                <Field label="SSN (last 4)" value={u.ssn_last4 ? `••• •• ${u.ssn_last4}` : "—"} />
+                <Field label="SSN" value={u.ssn_last4 ? u.ssn_last4 : "—"} />
                 <Field label="Citizenship" value={u.citizenship ?? u.nationality} />
                 <div className="col-span-2 md:col-span-3">
                   <Field label="Residential address" value={addr || (u.address_line1 ? [u.address_line1, u.address_line2, u.city, u.state].filter(Boolean).join(", ") : "—")} />
