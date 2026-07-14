@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { txApi } from '../../services/api';
+import { useMoney } from '../../utils/useMoney';
 
 const TYPE_TITLE: Record<string, string> = {
   transfer: 'Internal transfer',
@@ -18,8 +19,6 @@ const DIRECTION_LABEL: Record<string, string> = {
   credit: 'Receive from external account (deposit)',
 };
 
-const money = (n: any) =>
-  `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const mask = (s?: string) => (s ? `••••${String(s).slice(-4)}` : '—');
 
@@ -30,6 +29,7 @@ function parseMeta(m: any) {
 }
 
 export default function TransferReceiptPage() {
+  const { fmt: money } = useMoney();
   const { id } = useParams();
   const navigate = useNavigate();
 

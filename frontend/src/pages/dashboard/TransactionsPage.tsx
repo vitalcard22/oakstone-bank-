@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { txApi } from '../../services/api';
+import { useMoney } from '../../utils/useMoney';
 
 const TYPE_LABEL: Record<string, string> = {
   transfer: 'Internal transfer', zelle: 'Zelle', ach: 'ACH transfer', wire: 'Wire transfer',
   fee: 'Fee', deposit: 'Deposit', withdrawal: 'Withdrawal', payment: 'Payment',
 };
 
-const money = (n: any) =>
-  `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 
 const statusClass = (s: string) =>
@@ -32,6 +31,7 @@ const timeLabel = (iso: string) =>
   new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
 export default function TransactionsPage() {
+  const { fmt: money } = useMoney();
   const [accountId, setAccountId] = useState('');
   const [type, setType] = useState('');
   const [days, setDays] = useState('0');

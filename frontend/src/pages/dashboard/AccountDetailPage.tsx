@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { accountApi } from "../../services/api";
+import { useMoney } from '../../utils/useMoney';
 
-const fmt = (n: number) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
 
 export default function AccountDetailPage() {
+  const { fmt } = useMoney();
   const { id } = useParams<{ id: string }>();
   const { data: acct } = useQuery({ queryKey:["account",id], queryFn:()=>accountApi.get(id!).then((r)=>r.data) });
   const { data: txs  } = useQuery({ queryKey:["acct-txs",id], queryFn:()=>accountApi.transactions(id!).then((r)=>r.data) });

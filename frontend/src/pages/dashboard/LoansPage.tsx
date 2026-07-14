@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { loanApi } from "../../services/api";
 import { Link } from "react-router-dom";
+import { useMoney } from '../../utils/useMoney';
 
-const fmt = (n:number) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
 
 export default function LoansPage() {
+  const { fmt } = useMoney();
   const { data: loans } = useQuery({ queryKey:["loans"], queryFn:()=>loanApi.list().then((r)=>r.data) });
 
   return (

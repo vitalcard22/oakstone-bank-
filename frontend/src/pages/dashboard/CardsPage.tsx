@@ -2,6 +2,7 @@
 import { cardApi } from "../../services/api";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
+import { useMoney } from '../../utils/useMoney';
 
 const GRAD: Record<string,string> = {
   classic:"from-gray-700 to-gray-500",
@@ -15,7 +16,7 @@ export default function CardsPage() {
   const { data: apps  } = useQuery({ queryKey:["card-apps"], queryFn:()=>cardApi.applications().then((r)=>r.data) });
   const freezeMut   = useMutation({ mutationFn:(id:string)=>cardApi.freeze(id),   onSuccess:()=>{ qc.invalidateQueries({queryKey:["cards"]}); toast.success("Card frozen"); }});
   const unfreezeMut = useMutation({ mutationFn:(id:string)=>cardApi.unfreeze(id), onSuccess:()=>{ qc.invalidateQueries({queryKey:["cards"]}); toast.success("Card unfrozen"); }});
-  const fmt = (n: number) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
+  const { fmt } = useMoney();
 
   return (
     <div className="space-y-6">
