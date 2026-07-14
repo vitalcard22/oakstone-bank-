@@ -2,11 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { accountApi, txApi, authApi } from '../../services/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const fmt = (n: number) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+import { fmt as moneyFmt, loadRates } from '../../utils/money';
 
 const TYPE_LABEL: Record<string, string> = {
   transfer: 'Internal transfer', zelle: 'Zelle', ach: 'ACH transfer', wire: 'Wire transfer',
@@ -17,11 +16,20 @@ const timeLabel = (iso: string) => new Date(iso).toLocaleString(undefined, { mon
 export default function DashboardPage() {
   const [events, setEvents] = useState<any[]>([]);
 
+  const { data: me, isLoading: meLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn:  () => authApi.getMe().then((r) => r.data),
+  });
+
+  // All money on this page displays in the user's own currency (USD ledger underneath).
+  const fmt = useCallback((n: number) => moneyFmt(n, me?.currency), [me?.currency]);
+  useEffect(() => { loadRates(); }, []);
+
   useWebSocket({
     transaction: useCallback((data: any) => {
       setEvents((p) => [data, ...p].slice(0, 20));
-      if (data.amount) toast.success(`${data.type?.replace(/_/g,' ')} — ${fmt(data.amount)}`);
-    }, []),
+      if (data.amount) toast.success(`${data.type?.replace(/_/g,' ')} — ${moneyFmt(data.amount, me?.currency)}`);
+    }, [me?.currency]),
   });
 
   const { data: accounts, isLoading: accountsLoading } = useQuery({
@@ -34,10 +42,7 @@ export default function DashboardPage() {
     queryFn:  () => txApi.history().then((r) => r.data),
   });
 
-  const { data: me, isLoading: meLoading } = useQuery({
-    queryKey: ['me'],
-    queryFn:  () => authApi.getMe().then((r) => r.data),
-  });
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const firstName = me?.first_name ? me.first_name.charAt(0).toUpperCase() + me.first_name.slice(1) : '';
