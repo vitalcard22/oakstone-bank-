@@ -1,4 +1,6 @@
 // Oakstones 1 Bank — Identity Verification (KYC). Completed after sign-in.
+// International: the selected country drives the national-ID label/format,
+// region + postal labels, citizenship options and ID document types.
 // Collects KYC fields + a selfie (captured on device, resized client-side, sent as
 // a compact JPEG data URL). Admin reviews the selfie manually before approval.
 
@@ -9,22 +11,22 @@ import { z } from "zod";
 import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../../services/api";
 import toast from "react-hot-toast";
-
-const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"];
+import { COUNTRIES, US_STATES, getCountryConfig } from "../../utils/countries";
 
 const schema = z.object({
+  country: z.string().min(2, "Required"),
   dob: z.string().refine((d) => {
     if (!d) return false;
     const age = (Date.now() - new Date(d).getTime()) / (365.25 * 24 * 3600 * 1000);
     return age >= 18 && age < 120;
   }, "You must be at least 18 years old"),
-  ssn: z.string().regex(/^\d{3}-?\d{2}-?\d{4}$/, "Enter a valid 9-digit SSN (e.g. 123-45-6789)"),
+  ssn: z.string().min(4, "Required"),
   citizenship: z.string().min(1, "Required"),
   street: z.string().min(1, "Required"),
   unit: z.string().optional(),
   city: z.string().min(1, "Required"),
   state: z.string().min(1, "Required"),
-  zip: z.string().regex(/^\d{5}(-\d{4})?$/, "Enter a valid ZIP (e.g. 90210)"),
+  zip: z.string().min(3, "Required"),
   idType: z.string().min(1, "Required"),
   idNumber: z.string().min(3, "Required"),
   idState: z.string().optional(),
@@ -43,7 +45,7 @@ const STAGES = [
 ];
 
 const STAGE_FIELDS: Record<number, (keyof Form)[]> = {
-  1: ["dob", "ssn", "citizenship", "street", "city", "state", "zip"],
+  1: ["country", "dob", "ssn", "citizenship", "street", "city", "state", "zip"],
   2: ["idType", "idNumber"],
   3: [],
   4: ["accountType", "employment", "sourceOfFunds"],
@@ -83,10 +85,15 @@ export default function KycPage() {
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack, setIdBack] = useState<string | null>(null);
   const [idBusy, setIdBusy] = useState<"" | "front" | "back">("");
-  const { register, handleSubmit, trigger, formState: { errors } } = useForm<Form>({
+  const { register, handleSubmit, trigger, watch, setError, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
     mode: "onTouched",
+    defaultValues: { country: "US" },
   });
+
+  const country = watch("country") || "US";
+  const cfg = getCountryConfig(country);
+  const isUS = country === "US";
 
   async function onSelfie(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -122,6 +129,14 @@ export default function KycPage() {
   async function next() {
     const ok = await trigger(STAGE_FIELDS[stage]);
     if (!ok) return;
+    if (stage === 1) {
+      // Country-specific national-ID length check (counts letters+digits, ignores spaces/dashes/dots).
+      const raw = (watch("ssn") || "").replace(/[^0-9A-Za-z]/g, "");
+      if (raw.length < cfg.idMinDigits) {
+        setError("ssn", { message: `Enter a valid ${cfg.idLabel} (at least ${cfg.idMinDigits} characters)` });
+        return;
+      }
+    }
     if (stage === 2 && !idFront) { toast.error("Please add the front of your ID to continue."); return; }
     if (stage === 3 && !selfie) { toast.error("Please take a selfie to continue."); return; }
     setStage((s) => Math.min(4, s + 1));
@@ -210,7 +225,7 @@ export default function KycPage() {
         </div>
 
         <div className="ob-apply-card">
-          <div className="ob-secure">🔒 Your information is encrypted. We verify your identity in accordance with federal law.</div>
+          <div className="ob-secure">🔒 Your information is encrypted. We verify your identity in accordance with applicable law.</div>
 
           <div className="ob-steps">
             {STAGES.map((s) => (
@@ -226,34 +241,45 @@ export default function KycPage() {
               <>
                 <h2>Personal & address</h2>
                 <p className="sub">Enter details exactly as they appear on your government ID.</p>
+                <div className="ob-field full">
+                  <label className="ob-l">Country of residence</label>
+                  <select className="ob-s" {...register("country")}>
+                    {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select>
+                  <p className="ob-hint">Your account currency will be set from your country ({getCountryConfig(country) && (COUNTRIES.find(c => c.code === country)?.currency ?? "USD")}).</p>
+                  {err("country")}
+                </div>
                 <div className="ob-row">
                   <div className="ob-field"><label className="ob-l">Date of birth</label><input className="ob-i" type="date" {...register("dob")} />{err("dob")}</div>
                   <div className="ob-field"><label className="ob-l">Citizenship status</label>
                     <select className="ob-s" {...register("citizenship")} defaultValue="">
                       <option value="" disabled>Select…</option>
-                      <option>U.S. Citizen</option>
-                      <option>U.S. Permanent Resident</option>
-                      <option>Non-Resident</option>
+                      {cfg.citizenshipOptions.map((o) => <option key={o}>{o}</option>)}
                     </select>{err("citizenship")}
                   </div>
                 </div>
                 <div className="ob-field">
-                  <label className="ob-l">Social Security Number (SSN / ITIN)</label>
-                  <input className="ob-i" {...register("ssn")} placeholder="123-45-6789" inputMode="numeric" autoComplete="off" />
-                  <p className="ob-hint">Required by federal law (USA PATRIOT Act). Only the last 4 digits are stored.</p>
+                  <label className="ob-l">{cfg.idLabel}</label>
+                  <input className="ob-i" {...register("ssn")} placeholder={cfg.idPlaceholder} autoComplete="off" />
+                  <p className="ob-hint">{cfg.idHint} Only a truncated portion is stored.</p>
                   {err("ssn")}
                 </div>
                 <div className="ob-field full"><label className="ob-l">Street address</label><input className="ob-i" {...register("street")} placeholder="1 Oakstones Plaza" />{err("street")}</div>
                 <div className="ob-field full"><label className="ob-l">Apartment / unit (optional)</label><input className="ob-i" {...register("unit")} placeholder="Apt 4B" /></div>
                 <div className="ob-row3">
-                  <div className="ob-field"><label className="ob-l">City</label><input className="ob-i" {...register("city")} placeholder="New York" />{err("city")}</div>
-                  <div className="ob-field"><label className="ob-l">State</label>
-                    <select className="ob-s" {...register("state")} defaultValue="">
-                      <option value="" disabled>—</option>
-                      {US_STATES.map((s) => <option key={s}>{s}</option>)}
-                    </select>{err("state")}
+                  <div className="ob-field"><label className="ob-l">City</label><input className="ob-i" {...register("city")} placeholder="City" />{err("city")}</div>
+                  <div className="ob-field"><label className="ob-l">{cfg.regionLabel}</label>
+                    {isUS ? (
+                      <select className="ob-s" {...register("state")} defaultValue="">
+                        <option value="" disabled>—</option>
+                        {US_STATES.map((s) => <option key={s}>{s}</option>)}
+                      </select>
+                    ) : (
+                      <input className="ob-i" {...register("state")} placeholder={cfg.regionLabel} />
+                    )}
+                    {err("state")}
                   </div>
-                  <div className="ob-field"><label className="ob-l">ZIP code</label><input className="ob-i" {...register("zip")} placeholder="10001" inputMode="numeric" />{err("zip")}</div>
+                  <div className="ob-field"><label className="ob-l">{cfg.postalLabel}</label><input className="ob-i" {...register("zip")} placeholder={cfg.postalPlaceholder} />{err("zip")}</div>
                 </div>
               </>
             )}
@@ -266,19 +292,20 @@ export default function KycPage() {
                   <label className="ob-l">ID type</label>
                   <select className="ob-s" {...register("idType")} defaultValue="">
                     <option value="" disabled>Select…</option>
-                    <option>U.S. Driver's License</option>
-                    <option>State ID Card</option>
-                    <option>U.S. Passport</option>
-                    <option>Permanent Resident Card</option>
+                    {cfg.idTypes.map((t) => <option key={t}>{t}</option>)}
                   </select>{err("idType")}
                 </div>
                 <div className="ob-row">
-                  <div className="ob-field"><label className="ob-l">ID number</label><input className="ob-i" {...register("idNumber")} placeholder="D1234567" autoComplete="off" />{err("idNumber")}</div>
-                  <div className="ob-field"><label className="ob-l">Issuing state (if applicable)</label>
-                    <select className="ob-s" {...register("idState")} defaultValue="">
-                      <option value="">—</option>
-                      {US_STATES.map((s) => <option key={s}>{s}</option>)}
-                    </select>
+                  <div className="ob-field"><label className="ob-l">ID number</label><input className="ob-i" {...register("idNumber")} placeholder="Document number" autoComplete="off" />{err("idNumber")}</div>
+                  <div className="ob-field"><label className="ob-l">Issuing {isUS ? "state" : "region"} (if applicable)</label>
+                    {isUS ? (
+                      <select className="ob-s" {...register("idState")} defaultValue="">
+                        <option value="">—</option>
+                        {US_STATES.map((s) => <option key={s}>{s}</option>)}
+                      </select>
+                    ) : (
+                      <input className="ob-i" {...register("idState")} placeholder="Issuing region / authority" />
+                    )}
                   </div>
                 </div>
 
