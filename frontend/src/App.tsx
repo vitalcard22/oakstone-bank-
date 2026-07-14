@@ -16,6 +16,7 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import KycPage from './pages/auth/KycPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import MfaPage from './pages/auth/MfaPage';
 import VerifyEmailPage from './pages/auth/VerifyEmailPage';
 import LoginCodePage from './pages/auth/LoginCodePage';
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/kyc" element={<Auth><KycPage /></Auth>} />
           <Route path="/login-code" element={<LoginCodePage />} />

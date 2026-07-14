@@ -22,7 +22,7 @@ export default function LoansPage() {
             </div>
             <p className="font-mono font-bold text-navy-600">{fmt(parseFloat(l.outstanding_balance))}</p>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
             <div className="bg-gray-50 rounded-md p-2">
               <p className="text-xs text-gray-400">Monthly</p>
               <p className="font-mono text-sm">{fmt(parseFloat(l.monthly_payment))}</p>

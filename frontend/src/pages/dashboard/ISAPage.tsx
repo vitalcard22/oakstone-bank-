@@ -92,7 +92,7 @@ export default function ISAPage() {
             {accounts.map((a: any) => <option key={a.id} value={a.id}>{a.account_type} ••••{String(a.account_number).slice(-4)} — {fmt(a.available_balance)}</option>)}
           </select>
           <button onClick={() => { if (!accountId) { toast.error('Choose an account'); return; } enrollMut.mutate(); }} disabled={enrollMut.isPending} className="btn-primary w-full bg-purple-700 hover:bg-purple-800">{enrollMut.isPending ? 'Submitting…' : 'Request enrollment'}</button>
-          <div className="grid grid-cols-3 gap-3 mt-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
             {[{ l: 'Annual limit', v: fmt(allowance) }, { l: 'Rate', v: `${rate.toFixed(2)}% APY` }, { l: 'Tax', v: 'Tax-free' }].map(s => (
               <div key={s.l} className="bg-gray-50 rounded-lg p-3 text-center"><p className="text-[11px] text-gray-400">{s.l}</p><p className="text-sm font-semibold text-gray-900">{s.v}</p></div>
             ))}

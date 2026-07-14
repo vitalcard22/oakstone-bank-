@@ -175,7 +175,7 @@ export default function TransferPage() {
       <h1 className="text-xl font-semibold text-gray-900 mb-6">Send Money</h1>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit max-w-full overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.key}

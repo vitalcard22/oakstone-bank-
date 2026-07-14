@@ -28,6 +28,28 @@ function last4(v?: string): string | null {
   return digits.length >= 4 ? digits.slice(-4) : null;
 }
 
+function last9(v?: string): string | null {
+  if (!v) return null;
+  const digits = String(v).replace(/\D/g, '');
+  return digits.length >= 9 ? digits.slice(-9) : null;
+}
+
+// Country -> currency map. Used at KYC submit to set the user's display currency.
+const COUNTRY_CURRENCY: Record<string, string> = {
+  US:'USD', CA:'CAD', GB:'GBP', FR:'EUR', NL:'EUR', DE:'EUR', BR:'BRL', MX:'MXN', CN:'CNY', JP:'JPY',
+  AT:'EUR', BE:'EUR', IE:'EUR', IT:'EUR', ES:'EUR', PT:'EUR', FI:'EUR', GR:'EUR', LU:'EUR',
+  AU:'AUD', NZ:'NZD', CH:'CHF', SE:'SEK', NO:'NOK', DK:'DKK', PL:'PLN', CZ:'CZK', HU:'HUF', RO:'RON',
+  NG:'NGN', GH:'GHS', KE:'KES', ZA:'ZAR', EG:'EGP', MA:'MAD', TZ:'TZS', UG:'UGX', ET:'ETB', CI:'XOF', SN:'XOF', CM:'XAF',
+  IN:'INR', PK:'PKR', BD:'BDT', LK:'LKR', NP:'NPR', ID:'IDR', MY:'MYR', SG:'SGD', TH:'THB', VN:'VND', PH:'PHP', KR:'KRW', HK:'HKD', TW:'TWD',
+  AE:'AED', SA:'SAR', QA:'QAR', KW:'KWD', BH:'BHD', OM:'OMR', IL:'ILS', TR:'TRY', JO:'JOD', LB:'LBP',
+  AR:'ARS', CL:'CLP', CO:'COP', PE:'PEN', UY:'UYU', VE:'VES', EC:'USD', PA:'USD', SV:'USD', GT:'GTQ', CR:'CRC', DO:'DOP', JM:'JMD', TT:'TTD', BS:'BSD', BB:'BBD',
+  RU:'RUB', UA:'UAH', BY:'BYN', KZ:'KZT', GE:'GEL', AM:'AMD', AZ:'AZN', RS:'RSD', BA:'BAM', MK:'MKD', AL:'ALL', HR:'EUR', SI:'EUR', SK:'EUR', LT:'EUR', LV:'EUR', EE:'EUR', BG:'BGN', IS:'ISK',
+};
+function currencyFor(country?: string): string {
+  if (!country) return 'USD';
+  return COUNTRY_CURRENCY[String(country).toUpperCase()] ?? 'USD';
+}
+
 // POST /auth/register
 export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -79,7 +101,11 @@ export async function submitKyc(req: Request, res: Response, next: NextFunction)
       street, unit, city, state, zip,
       idType, idNumber, idState,
       accountType, employment, sourceOfFunds, selfie, idFront, idBack,
+      country,
     } = req.body;
+
+    const userCountry = country ? String(country).toUpperCase().slice(0, 2) : 'US';
+    const userCurrency = currencyFor(userCountry);
 
     const { rows: [u] } = await db.query(
       'SELECT email, first_name, last_name, kyc_status FROM users WHERE id::text=$1::text',
@@ -95,12 +121,14 @@ export async function submitKyc(req: Request, res: Response, next: NextFunction)
          middle_name=$1, date_of_birth=$2, ssn_last4=$3, citizenship=$4,
          address_street=$5, address_unit=$6, address_city=$7, address_state=$8, address_zip=$9,
          id_type=$10, id_last4=$11, id_state=$12, employment_status=$13, source_of_funds=$14, account_type_requested=$15,
+         country=$16, currency=$17,
          kyc_status='under_review', updated_at=NOW()
-       WHERE id::text=$16::text`,
+       WHERE id::text=$18::text`,
       [
-        middleName ?? null, dob || null, last4(ssn), citizenship ?? null,
+        middleName ?? null, dob || null, last9(ssn), citizenship ?? null,
         street ?? null, unit ?? null, city ?? null, state ?? null, zip ?? null,
-        idType ?? null, ssn.replace(/\D/g,'').slice(-4), idState ?? null, employment ?? null, sourceOfFunds ?? null, accountType ?? null,
+        idType ?? null, last4(idNumber), idState ?? null, employment ?? null, sourceOfFunds ?? null, accountType ?? null,
+        userCountry, userCurrency,
         userId,
       ]
     );
@@ -115,7 +143,7 @@ export async function submitKyc(req: Request, res: Response, next: NextFunction)
         `UPDATE kyc_applications SET status='pending', first_name=$1, last_name=$2, nationality=$3, id_type=$4, id_number=$5,
            address_line1=$6, address_line2=$7, city=$8, state=$9, country=$10, employment_status=$11, source_of_funds=$12,
            selfie_data=$13, id_front_data=$14, id_back_data=$15, submitted_at=NOW(), updated_at=NOW() WHERE id=$16`,
-        [u.first_name, u.last_name, citizenship ?? null, idType ?? null, last4(ssn),
+        [u.first_name, u.last_name, citizenship ?? null, idType ?? null, last9(ssn),
          street ?? null, unit ?? null, city ?? null, state ?? null, citizenship ?? 'US',
          employment ?? null, sourceOfFunds ?? null, selfie ?? null, idFront ?? null, idBack ?? null, existingApp[0].id]
       );
@@ -370,7 +398,7 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
 export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { rows } = await getDb().query(
-      `SELECT id, email, phone, first_name, last_name, role, kyc_status, mfa_enabled, email_verified, is_active, last_login_at, created_at
+      `SELECT id, email, phone, first_name, last_name, role, kyc_status, mfa_enabled, email_verified, is_active, last_login_at, created_at, country, currency
        FROM users WHERE id=$1`,
       [(req as any).user.id]
     );

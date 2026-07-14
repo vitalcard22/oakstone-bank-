@@ -31,7 +31,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-900">Admin dashboard</h1>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {metrics.map((m) => (
           <div key={m.label} className="card px-4 py-4">
             <p className="text-xs text-gray-400 uppercase tracking-wide">{m.label}</p>
