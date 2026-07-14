@@ -598,7 +598,7 @@ const LandingPage: React.FC = () => {
           <hr className="ob-rule" />
           <h2>At your service.</h2>
           <div className="ob-contact-grid">
-            <div><h3>By correspondence</h3><p><a href="mailto:support@oaskstoneone.com">support@oaskstoneone.com</a><br />Replies within one business day.</p></div>
+            <div><h3>By correspondence</h3><p><a href="mailto:support@oakstones1.com">support@oakstones1.com</a><br />Replies within one business day.</p></div>
             <div><h3>Headquarters</h3><p>Oakstones 1 Bank, Financial District.<br />Correspondence by appointment.</p></div>
           </div>
         </div>
