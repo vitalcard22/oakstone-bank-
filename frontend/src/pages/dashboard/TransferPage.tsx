@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { accountApi, txApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import { useMoney } from '../../utils/useMoney';
 
 const TABS = [
   { key: 'transfer', label: 'Internal' },
@@ -24,10 +25,10 @@ const DIRECTION_LABEL: Record<string, string> = {
   credit: 'Receive from external account (deposit)',
 };
 
-const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function TransferPage() {
   const [tab, setTab] = useState('transfer');
+  const { fmt, toUsd, symbol } = useMoney();
   const [step, setStep] = useState<'form' | 'review' | 'code'>('form');
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -95,7 +96,7 @@ export default function TransferPage() {
         fromAccountId:   d.fromAccountId,
         toAccountNumber: d.toAccountNumber,
         recipientName:   d.recipientName || undefined,
-        amount:          d.amount,
+        amount:          toUsd(d.amount),
         description:     d.description || undefined,
       };
     }
@@ -103,7 +104,7 @@ export default function TransferPage() {
       return {
         fromAccountId: d.fromAccountId,
         identifier:    d.identifier,
-        amount:        d.amount,
+        amount:        toUsd(d.amount),
         note:          d.note || undefined,
       };
     }
@@ -115,13 +116,13 @@ export default function TransferPage() {
         externalAccountNumber: d.externalAccountNumber,
         accountType:           d.accountType,
         direction:             d.direction,
-        amount:                d.amount,
+        amount:                toUsd(d.amount),
       };
     }
     // wire
     return {
       fromAccountId: d.fromAccountId,
-      amount:        d.amount,
+      amount:        toUsd(d.amount),
       recipient: {
         name:               d.recipientName,
         accountNumber:      d.recipientAccount,
@@ -139,6 +140,7 @@ export default function TransferPage() {
 
   // Validate → go to review (looking up the Zelle recipient name first).
   const onValid = async (d: any) => {
+    if (tab === 'wire' && toUsd(d.amount) < 100) { toast.error(`Minimum ${fmt(100)} for wire transfers`); return; }
     if (tab === 'zelle') {
       setZelleName(null);
       setZelleNotFound(false);
@@ -159,8 +161,9 @@ export default function TransferPage() {
 
   const fromAcct = active.find((a: any) => a.id === review?.fromAccountId);
   const fromLabel = fromAcct ? `${fromAcct.account_type} ****${fromAcct.account_number?.slice(-4)}` : review?.fromAccountId;
-  const amt = parseFloat(review?.amount ?? 0) || 0;
-  const total = amt + (fee || 0);
+  const amt = parseFloat(review?.amount ?? 0) || 0;      // typed in the user's currency
+  const amtUsd = toUsd(amt);                               // what actually moves on the USD ledger
+  const total = amtUsd + (fee || 0);                       // USD terms; displayed via fmt
 
   const Row = ({ label, value }: { label: string; value: any }) =>
     value ? (
@@ -189,8 +192,8 @@ export default function TransferPage() {
 
       <p className="text-sm text-gray-500 mb-2 max-w-lg">{BLURB[tab]}</p>
       <p className="text-xs text-gray-400 mb-6 max-w-lg">
-        {limit ? `Limit: ${money(limit)} per transfer. ` : ''}
-        {fee > 0 ? `Fee: ${money(fee)}.` : 'No fee.'}
+        {limit ? `Limit: ${fmt(limit)} per transfer. ` : ''}
+        {fee > 0 ? `Fee: ${fmt(fee)}.` : 'No fee.'}
       </p>
 
       {/* ============ STEP 1: FORM ============ */}
@@ -204,7 +207,7 @@ export default function TransferPage() {
               <option value="">Select account</option>
               {active.map((a: any) => (
                 <option key={a.id} value={a.id}>
-                  {a.account_type} ****{a.account_number?.slice(-4)} — ${parseFloat(a.available_balance ?? 0).toFixed(2)}
+                  {a.account_type} ****{a.account_number?.slice(-4)} — {fmt(parseFloat(a.available_balance ?? 0))}
                 </option>
               ))}
             </select>
@@ -332,8 +335,8 @@ export default function TransferPage() {
           <div>
             <label className="label">Amount</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-              <input {...register('amount', { required: 'Required', min: { value: tab === 'wire' ? 100 : 0.01, message: tab === 'wire' ? 'Minimum $100 for wire' : 'Minimum $0.01' } })} type="number" step="0.01" placeholder="0.00" className="input pl-7" />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{symbol}</span>
+              <input {...register('amount', { required: 'Required', min: { value: 0.01, message: 'Enter an amount' } })} type="number" step="0.01" placeholder="0.00" className="input pl-7" />
             </div>
             {err('amount')}
           </div>
@@ -391,9 +394,9 @@ export default function TransferPage() {
           )}
 
           <div className="bg-gray-50 rounded-lg p-4 mb-5 space-y-1">
-            <div className="flex justify-between text-sm"><span className="text-gray-500">Amount</span><span className="font-medium">{money(amt)}</span></div>
-            {fee > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Fee</span><span className="font-medium">{money(fee)}</span></div>}
-            <div className="flex justify-between text-base pt-1 border-t border-gray-200 mt-1"><span className="font-semibold text-gray-900">Total</span><span className="font-semibold text-gray-900">{money(total)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-gray-500">Amount</span><span className="font-medium">{fmt(amtUsd)}</span></div>
+            {fee > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Fee</span><span className="font-medium">{fmt(fee)}</span></div>}
+            <div className="flex justify-between text-base pt-1 border-t border-gray-200 mt-1"><span className="font-semibold text-gray-900">Total</span><span className="font-semibold text-gray-900">{fmt(total)}</span></div>
           </div>
 
           <div className="flex gap-3">
