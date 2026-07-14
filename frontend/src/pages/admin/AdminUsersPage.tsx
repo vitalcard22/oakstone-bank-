@@ -487,16 +487,18 @@ export default function AdminUsersPage() {
                   <div className="space-y-2">
                     {userTxns.map((t: any) => {
                       const meta = t.metadata ? (typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata) : {};
+                      const isIncoming = t.tx_type === 'deposit' || (!!t.to_account_id && !t.from_account_id);
+                      const isOutgoing = ['withdrawal', 'payment', 'fee'].includes(t.tx_type) || (!!t.from_account_id && !t.to_account_id);
                       return (
                         <div key={t.id} className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50/50 transition-colors">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-3">
                               <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold ${
-                                t.tx_type === 'credit' ? 'bg-green-100 text-green-700' :
-                                t.tx_type === 'debit' ? 'bg-red-100 text-red-600' :
+                                isIncoming ? 'bg-green-100 text-green-700' :
+                                isOutgoing ? 'bg-red-100 text-red-600' :
                                 'bg-blue-100 text-blue-700'
                               }`}>
-                                {t.tx_type === 'credit' ? '+' : t.tx_type === 'debit' ? '−' : '↔'}
+                                {isIncoming ? '+' : isOutgoing ? '−' : '↔'}
                               </div>
                               <div>
                                 <p className="font-semibold text-gray-900 text-sm">{t.description || 'Transaction'}</p>
@@ -506,8 +508,8 @@ export default function AdminUsersPage() {
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className={`text-lg font-bold ${t.tx_type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
-                                {t.tx_type === 'credit' ? '+' : '−'}{fmt(parseFloat(t.amount))}
+                              <p className={`text-lg font-bold ${isIncoming ? 'text-green-600' : isOutgoing ? 'text-red-500' : 'text-gray-800'}`}>
+                                {isIncoming ? '+' : isOutgoing ? '−' : ''}{fmt(parseFloat(t.amount))}
                               </p>
                               <span className={`text-xs px-2 py-0.5 rounded-full ${t.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                                 {t.status}
