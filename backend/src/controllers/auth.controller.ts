@@ -398,7 +398,7 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
 export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { rows } = await getDb().query(
-      `SELECT id, email, phone, first_name, last_name, role, kyc_status, mfa_enabled, email_verified, is_active, last_login_at, created_at, country, currency
+      `SELECT id, email, phone, first_name, last_name, role, kyc_status, mfa_enabled, email_verified, is_active, last_login_at, created_at, country, currency, profile_photo
        FROM users WHERE id=$1`,
       [(req as any).user.id]
     );
@@ -412,11 +412,18 @@ export async function getMe(req: Request, res: Response, next: NextFunction): Pr
 // PATCH /auth/me
 export async function updateMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { firstName, lastName, phone } = req.body;
-    await getDb().query(
-      'UPDATE users SET first_name=$1, last_name=$2, phone=$3 WHERE id=$4',
-      [firstName, lastName, phone, (req as any).user.id]
-    );
+    const { firstName, lastName, phone, profilePhoto } = req.body;
+    if (profilePhoto !== undefined) {
+      await getDb().query(
+        'UPDATE users SET first_name=$1, last_name=$2, phone=$3, profile_photo=$4 WHERE id=$5',
+        [firstName, lastName, phone, profilePhoto, (req as any).user.id]
+      );
+    } else {
+      await getDb().query(
+        'UPDATE users SET first_name=$1, last_name=$2, phone=$3 WHERE id=$4',
+        [firstName, lastName, phone, (req as any).user.id]
+      );
+    }
     res.json({ message: 'Profile updated' });
   } catch (e) {
     next(e);
