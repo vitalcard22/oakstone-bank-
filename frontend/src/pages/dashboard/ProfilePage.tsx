@@ -87,9 +87,6 @@ export default function ProfilePage() {
   }
 
   const countryName = COUNTRIES.find((c) => c.code === user?.country)?.name ?? "United States";
-  const memberSince = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" })
-    : null;
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -156,16 +153,10 @@ export default function ProfilePage() {
             <span className="text-gray-500">Country</span>
             <span className="text-gray-900 font-medium">{countryName}</span>
           </div>
-          <div className="flex justify-between py-1.5 border-b border-gray-100">
+          <div className="flex justify-between py-1.5">
             <span className="text-gray-500">Display currency</span>
             <span className="text-gray-900 font-medium">{user?.currency ?? "USD"}</span>
           </div>
-          {memberSince && (
-            <div className="flex justify-between py-1.5">
-              <span className="text-gray-500">Member since</span>
-              <span className="text-gray-900 font-medium">{memberSince}</span>
-            </div>
-          )}
         </div>
       </div>
 
