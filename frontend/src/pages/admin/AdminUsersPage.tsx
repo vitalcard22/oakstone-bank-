@@ -135,6 +135,7 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
@@ -197,6 +198,7 @@ export default function AdminUsersPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Accounts / Freeze Panel */}
@@ -454,7 +456,7 @@ export default function AdminUsersPage() {
               {userAccounts?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Accounts</p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {userAccounts.map((a: any) => (
                       <div key={a.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                         <div className="flex items-center gap-2 mb-2">
@@ -516,7 +518,7 @@ export default function AdminUsersPage() {
                               </span>
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-3 bg-gray-50 rounded-lg p-3 text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 rounded-lg p-3 text-xs">
                             <div>
                               <p className="text-gray-400 mb-0.5">Reference ID</p>
                               <p className="font-mono font-medium text-gray-700 truncate">{t.reference_id || '—'}</p>

@@ -8,6 +8,7 @@ export default function AdminAuditPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-gray-900">Audit log</h1>
       <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
@@ -30,6 +31,7 @@ export default function AdminAuditPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

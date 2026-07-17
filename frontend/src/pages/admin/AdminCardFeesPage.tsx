@@ -68,7 +68,7 @@ export default function AdminCardFeesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         {fees?.map((c: any) => (
           <div key={c.card_type} className="card p-5">
             <div className="flex justify-between items-start mb-4">
