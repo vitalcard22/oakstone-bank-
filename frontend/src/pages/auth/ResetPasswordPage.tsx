@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -11,6 +12,8 @@ export default function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,27 +48,49 @@ export default function ResetPasswordPage() {
               <form onSubmit={submit} className="space-y-4">
                 <div>
                   <label className="label">New password</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="input"
-                    placeholder="At least 8 characters"
-                    autoComplete="new-password"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="input pr-10"
+                      placeholder="At least 8 characters"
+                      autoComplete="new-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="label">Confirm new password</label>
-                  <input
-                    type="password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    className="input"
-                    placeholder="Re-enter password"
-                    autoComplete="new-password"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirm ? 'text' : 'password'}
+                      value={confirm}
+                      onChange={(e) => setConfirm(e.target.value)}
+                      className="input pr-10"
+                      placeholder="Re-enter password"
+                      autoComplete="new-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                      tabIndex={-1}
+                    >
+                      {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <button type="submit" disabled={busy} className="btn-primary w-full py-3 disabled:opacity-60">
                   {busy ? 'Resetting…' : 'Reset password'}

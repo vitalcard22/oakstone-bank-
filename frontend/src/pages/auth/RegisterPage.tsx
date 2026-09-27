@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../../services/api";
 import toast from "react-hot-toast";
+import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   firstName: z.string().min(1, "Required"),
@@ -25,6 +26,8 @@ type Form = z.infer<typeof schema>;
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
     mode: "onTouched",
@@ -74,6 +77,10 @@ export default function RegisterPage() {
         label.ob-l{display:block;font-size:13px;color:#4a4940;margin-bottom:6px;letter-spacing:.02em;}
         .ob-i,.ob-s{width:100%;padding:12px 14px;border:1px solid #d9d4c4;border-radius:8px;font-size:15px;font-family:inherit;background:#fff;color:#33322C;}
         .ob-i:focus,.ob-s:focus{outline:none;border-color:#2E8B5E;box-shadow:0 0 0 3px rgba(46,139,94,.12);}
+        .ob-pwd-wrap{position:relative;}
+        .ob-pwd-wrap .ob-i{padding-right:40px;}
+        .ob-pwd-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:0;padding:4px;cursor:pointer;color:#9a988c;display:flex;}
+        .ob-pwd-toggle:hover{color:#4a4940;}
         .ob-err{color:#b23b3b;font-size:12px;margin:5px 0 0;}
         .ob-hint{color:#9a988c;font-size:12px;margin:5px 0 0;}
         .ob-check{display:flex;gap:10px;align-items:flex-start;margin-top:4px;}
@@ -115,8 +122,26 @@ export default function RegisterPage() {
               <div className="ob-field"><label className="ob-l">Mobile phone (optional)</label><input className="ob-i" type="tel" {...register("phone")} placeholder="(555) 000-0000" />{err("phone")}</div>
             </div>
             <div className="ob-row">
-              <div className="ob-field"><label className="ob-l">Create password</label><input className="ob-i" type="password" {...register("password")} placeholder="Min 8 chars, 1 uppercase, 1 number" />{err("password")}</div>
-              <div className="ob-field"><label className="ob-l">Confirm password</label><input className="ob-i" type="password" {...register("confirm")} placeholder="••••••••" />{err("confirm")}</div>
+              <div className="ob-field">
+                <label className="ob-l">Create password</label>
+                <div className="ob-pwd-wrap">
+                  <input className="ob-i" type={showPassword ? "text" : "password"} {...register("password")} placeholder="Min 8 chars, 1 uppercase, 1 number" />
+                  <button type="button" className="ob-pwd-toggle" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "Hide password" : "Show password"} tabIndex={-1}>
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+                {err("password")}
+              </div>
+              <div className="ob-field">
+                <label className="ob-l">Confirm password</label>
+                <div className="ob-pwd-wrap">
+                  <input className="ob-i" type={showConfirm ? "text" : "password"} {...register("confirm")} placeholder="••••••••" />
+                  <button type="button" className="ob-pwd-toggle" onClick={() => setShowConfirm(v => !v)} aria-label={showConfirm ? "Hide password" : "Show password"} tabIndex={-1}>
+                    {showConfirm ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+                {err("confirm")}
+              </div>
             </div>
             <div className="ob-field full ob-check">
               <input type="checkbox" id="agree" {...register("agree")} />
