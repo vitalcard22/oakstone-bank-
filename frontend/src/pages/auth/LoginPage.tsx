@@ -8,10 +8,6 @@ import toast from 'react-hot-toast';
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 
-// Backend locks the account for 30 minutes after 5 failed attempts
-// (see backend/src/controllers/auth.controller.ts). Kept in sync manually.
-const LOCKOUT_MINUTES = 30;
-
 const schema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(1, 'Required'),
@@ -47,7 +43,7 @@ export default function LoginPage() {
       const status = e.response?.status;
       const msg = e.response?.data?.error || e.response?.data?.message || 'Login failed';
       if (status === 423) {
-        toast.error(`${msg} Please wait up to ${LOCKOUT_MINUTES} minutes before trying again.`, { duration: 6000 });
+        toast.error(msg, { duration: 6000 });
       } else {
         toast.error(msg);
       }
