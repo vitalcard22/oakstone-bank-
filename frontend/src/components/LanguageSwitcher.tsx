@@ -41,11 +41,16 @@ function getCurrentLang(): string {
 }
 
 function clearTranslateCookie() {
-  const host = window.location.hostname;
+  // Google may store the cookie on the host or on any parent domain
+  // (e.g. www.oakstones1.com and .oakstones1.com) — clear every level.
   const expire = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
   document.cookie = expire;
-  document.cookie = `${expire}; domain=${host}`;
-  document.cookie = `${expire}; domain=.${host}`;
+  const parts = window.location.hostname.split('.');
+  for (let i = 0; i < parts.length - 1; i++) {
+    const d = parts.slice(i).join('.');
+    document.cookie = `${expire}; domain=${d}`;
+    document.cookie = `${expire}; domain=.${d}`;
+  }
 }
 
 // Google's translator rewrites text nodes, which can make React throw
