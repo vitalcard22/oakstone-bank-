@@ -39,3 +39,10 @@
   .badge-blue   { @apply text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700; }
   .badge-gray   { @apply text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600; }
 }
+
+/* Language translator: hide Google's default top banner/tooltips (we use our own button) */
+body { top: 0 !important; }
+body > .skiptranslate { display: none !important; }
+iframe.goog-te-banner-frame, .goog-te-banner-frame { display: none !important; }
+#goog-gt-tt, .goog-te-balloon-frame { display: none !important; }
+.goog-text-highlight { background: none !important; box-shadow: none !important; }

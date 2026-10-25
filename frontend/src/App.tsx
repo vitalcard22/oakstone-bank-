@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/auth.store';
 import AppLayout from './components/layout/AppLayout';
 import AdminLayout from './components/layout/AdminLayout';
+import LanguageSwitcher from './components/LanguageSwitcher';
 
 import LandingPage from './pages/LandingPage';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
@@ -73,6 +74,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster position="top-right" />
+      <LanguageSwitcher />
       <BrowserRouter>
         <Routes>
           {/* Public */}
